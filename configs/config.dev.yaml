@@ -1,0 +1,42 @@
+# Server
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug"
+
+# Database
+database:
+  driver: "postgres"
+  host: "localhost"
+  port: 5432
+  user: "ajoliving"
+  password: "secret"
+  name: "ajoliving_dev"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+# Redis
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+
+# JWT
+jwt:
+  secret: "dev-secret-key"
+  expire_hours: 24
+  refresh_expire_hours: 168
+
+# Log
+log:
+  level: "debug"
+  format: "console"
+  output: "stdout"
+
+# CORS
+cors:
+  allowed_origins:
+    - "*"

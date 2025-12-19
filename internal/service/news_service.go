@@ -1,0 +1,257 @@
+package service
+
+import (
+	"context"
+
+	"go.uber.org/zap"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/response"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/model"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/errors"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/repository"
+)
+
+// NewsService 新闻服务接口
+type NewsService interface {
+	ListNews(ctx context.Context, filter *request.ListNewsRequest) ([]*response.NewsListItemResponse, int64, error)
+	GetNews(ctx context.Context, id uint) (*response.NewsResponse, error)
+	GetHotNews(ctx context.Context) ([]*response.NewsListItemResponse, error)
+	GetFeaturedNews(ctx context.Context) ([]*response.NewsListItemResponse, error)
+	GetLatestNews(ctx context.Context) ([]*response.NewsListItemResponse, error)
+	GetRelatedNews(ctx context.Context, id uint) ([]*response.RelatedNewsResponse, error)
+	GetNewsCategories(ctx context.Context) ([]*response.NewsCategoryResponse, error)
+}
+
+type newsService struct {
+	repo   repository.NewsRepository
+	logger *zap.Logger
+}
+
+// NewNewsService 创建新闻服务
+func NewNewsService(repo repository.NewsRepository, logger *zap.Logger) NewsService {
+	return &newsService{
+		repo:   repo,
+		logger: logger,
+	}
+}
+
+// ListNews 获取新闻列表
+func (s *newsService) ListNews(ctx context.Context, filter *request.ListNewsRequest) ([]*response.NewsListItemResponse, int64, error) {
+	news, total, err := s.repo.List(ctx, filter)
+	if err != nil {
+		s.logger.Error("failed to list news", zap.Error(err))
+		return nil, 0, err
+	}
+	
+	result := make([]*response.NewsListItemResponse, 0, len(news))
+	for _, n := range news {
+		result = append(result, convertToNewsListItemResponse(n))
+	}
+	
+	return result, total, nil
+}
+
+// GetNews 获取新闻详情
+func (s *newsService) GetNews(ctx context.Context, id uint) (*response.NewsResponse, error) {
+	news, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to get news", zap.Error(err))
+		return nil, err
+	}
+	if news == nil {
+		return nil, errors.ErrNotFound
+	}
+	
+	// 增加浏览量
+	if err := s.repo.IncrementViewCount(ctx, id); err != nil {
+		s.logger.Warn("failed to increment view count", zap.Uint("news_id", id), zap.Error(err))
+	}
+	
+	return convertToNewsResponse(news), nil
+}
+
+// GetHotNews 获取热门新闻
+func (s *newsService) GetHotNews(ctx context.Context) ([]*response.NewsListItemResponse, error) {
+	news, err := s.repo.GetHotNews(ctx, 10)
+	if err != nil {
+		s.logger.Error("failed to get hot news", zap.Error(err))
+		return nil, err
+	}
+	
+	result := make([]*response.NewsListItemResponse, 0, len(news))
+	for _, n := range news {
+		result = append(result, convertToNewsListItemResponse(n))
+	}
+	
+	return result, nil
+}
+
+// GetFeaturedNews 获取精选新闻
+func (s *newsService) GetFeaturedNews(ctx context.Context) ([]*response.NewsListItemResponse, error) {
+	news, err := s.repo.GetFeaturedNews(ctx, 10)
+	if err != nil {
+		s.logger.Error("failed to get featured news", zap.Error(err))
+		return nil, err
+	}
+	
+	result := make([]*response.NewsListItemResponse, 0, len(news))
+	for _, n := range news {
+		result = append(result, convertToNewsListItemResponse(n))
+	}
+	
+	return result, nil
+}
+
+// GetLatestNews 获取最新新闻
+func (s *newsService) GetLatestNews(ctx context.Context) ([]*response.NewsListItemResponse, error) {
+	news, err := s.repo.GetLatestNews(ctx, 10)
+	if err != nil {
+		s.logger.Error("failed to get latest news", zap.Error(err))
+		return nil, err
+	}
+	
+	result := make([]*response.NewsListItemResponse, 0, len(news))
+	for _, n := range news {
+		result = append(result, convertToNewsListItemResponse(n))
+	}
+	
+	return result, nil
+}
+
+// GetRelatedNews 获取相关新闻
+func (s *newsService) GetRelatedNews(ctx context.Context, id uint) ([]*response.RelatedNewsResponse, error) {
+	// 先获取当前新闻
+	currentNews, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to get current news", zap.Error(err))
+		return nil, err
+	}
+	if currentNews == nil {
+		return nil, errors.ErrNotFound
+	}
+	
+	// 获取同分类的相关新闻
+	news, err := s.repo.GetRelatedNews(ctx, id, currentNews.CategoryID, 5)
+	if err != nil {
+		s.logger.Error("failed to get related news", zap.Error(err))
+		return nil, err
+	}
+	
+	result := make([]*response.RelatedNewsResponse, 0, len(news))
+	for _, n := range news {
+		result = append(result, convertToRelatedNewsResponse(n))
+	}
+	
+	return result, nil
+}
+
+// GetNewsCategories 获取新闻分类列表
+func (s *newsService) GetNewsCategories(ctx context.Context) ([]*response.NewsCategoryResponse, error) {
+	categories, err := s.repo.GetAllCategories(ctx)
+	if err != nil {
+		s.logger.Error("failed to get news categories", zap.Error(err))
+		return nil, err
+	}
+	
+	result := make([]*response.NewsCategoryResponse, 0, len(categories))
+	for _, c := range categories {
+		result = append(result, convertToNewsCategoryResponse(c))
+	}
+	
+	return result, nil
+}
+
+// 辅助函数
+
+// convertToNewsListItemResponse 转换为新闻列表项响应
+func convertToNewsListItemResponse(news *model.News) *response.NewsListItemResponse {
+	resp := &response.NewsListItemResponse{
+		ID:            news.ID,
+		CategoryID:    news.CategoryID,
+		Title:         news.Title,
+		Subtitle:      news.Subtitle,
+		Summary:       news.Summary,
+		CoverImageURL: news.CoverImageURL,
+		SourceName:    news.SourceName,
+		AuthorName:    news.AuthorName,
+		PublishedAt:   news.PublishedAt,
+		ViewCount:     news.ViewCount,
+		LikeCount:     news.LikeCount,
+		CommentCount:  news.CommentCount,
+		IsFeatured:    news.IsFeatured,
+		IsHot:         news.IsHot,
+		IsTop:         news.IsTop,
+		Tags:          news.GetTagList(),
+		CreatedAt:     news.CreatedAt,
+	}
+	
+	if news.Category != nil {
+		resp.Category = convertToNewsCategoryResponse(news.Category)
+	}
+	
+	return resp
+}
+
+// convertToNewsResponse 转换为新闻详情响应
+func convertToNewsResponse(news *model.News) *response.NewsResponse {
+	resp := &response.NewsResponse{
+		ID:              news.ID,
+		CategoryID:      news.CategoryID,
+		Title:           news.Title,
+		Subtitle:        news.Subtitle,
+		Summary:         news.Summary,
+		Content:         news.Content,
+		CoverImageURL:   news.CoverImageURL,
+		SourceName:      news.SourceName,
+		SourceURL:       news.SourceURL,
+		AuthorName:      news.AuthorName,
+		PublishedAt:     news.PublishedAt,
+		ViewCount:       news.ViewCount,
+		LikeCount:       news.LikeCount,
+		CommentCount:    news.CommentCount,
+		IsFeatured:      news.IsFeatured,
+		IsHot:           news.IsHot,
+		IsTop:           news.IsTop,
+		Status:          news.Status,
+		Tags:            news.GetTagList(),
+		Keywords:        news.Keywords,
+		MetaDescription: news.MetaDescription,
+		CrawlerSource:   news.CrawlerSource,
+		CrawledAt:       news.CrawledAt,
+		CreatedAt:       news.CreatedAt,
+		UpdatedAt:       news.UpdatedAt,
+	}
+	
+	if news.Category != nil {
+		resp.Category = convertToNewsCategoryResponse(news.Category)
+	}
+	
+	return resp
+}
+
+// convertToRelatedNewsResponse 转换为相关新闻响应
+func convertToRelatedNewsResponse(news *model.News) *response.RelatedNewsResponse {
+	return &response.RelatedNewsResponse{
+		ID:            news.ID,
+		Title:         news.Title,
+		Summary:       news.Summary,
+		CoverImageURL: news.CoverImageURL,
+		PublishedAt:   news.PublishedAt,
+		ViewCount:     news.ViewCount,
+	}
+}
+
+// convertToNewsCategoryResponse 转换为新闻分类响应
+func convertToNewsCategoryResponse(category *model.NewsCategory) *response.NewsCategoryResponse {
+	return &response.NewsCategoryResponse{
+		ID:          category.ID,
+		NameZhHant:  category.NameZhHant,
+		NameZhHans:  category.NameZhHans,
+		NameEn:      category.NameEn,
+		Slug:        category.Slug,
+		Description: category.Description,
+		SortOrder:   category.SortOrder,
+		CreatedAt:   category.CreatedAt,
+		UpdatedAt:   category.UpdatedAt,
+	}
+}
