@@ -86,16 +86,6 @@ type AgentBriefResponse struct {
 	LicenseNo string `json:"license_no,omitempty"`
 }
 
-// FacilityResponse 设施响应
-type FacilityResponse struct {
-	ID         uint   `json:"id"`
-	NameZhHant string `json:"name_zh_hant"`
-	NameZhHans string `json:"name_zh_hans,omitempty"`
-	NameEn     string `json:"name_en,omitempty"`
-	Icon       string `json:"icon,omitempty"`
-	Category   string `json:"category"`
-}
-
 // CreatePropertyResponse 创建房产响应
 type CreatePropertyResponse struct {
 	ID         uint   `json:"id"`

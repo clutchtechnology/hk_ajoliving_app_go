@@ -101,21 +101,72 @@ migrate-create:
 ## docker-build: 构建 Docker 镜像
 docker-build:
 	@echo "Building Docker image..."
-	docker build -f deployments/docker/Dockerfile -t $(APP_NAME) .
+	docker-compose build
 
-## docker-run: 使用 Docker Compose 运行
-docker-run:
+## docker-up: 启动所有 Docker 服务
+docker-up:
 	@echo "Starting services with Docker Compose..."
 	docker-compose up -d
 
-## docker-stop: 停止 Docker Compose 服务
+## docker-down: 停止并删除 Docker 服务
+docker-down:
+	@echo "Stopping and removing services..."
+	docker-compose down
+
+## docker-stop: 停止 Docker 服务
 docker-stop:
 	@echo "Stopping services..."
-	docker-compose down
+	docker-compose stop
+
+## docker-restart: 重启 Docker 服务
+docker-restart:
+	@echo "Restarting services..."
+	docker-compose restart
 
 ## docker-logs: 查看 Docker 日志
 docker-logs:
+	@echo "Following logs (Ctrl+C to exit)..."
 	docker-compose logs -f
+
+## docker-logs-api: 查看 API 日志
+docker-logs-api:
+	docker-compose logs -f api
+
+## docker-ps: 查看 Docker 容器状态
+docker-ps:
+	docker-compose ps
+
+## docker-clean: 清理 Docker 资源（不删除数据卷）
+docker-clean:
+	@echo "Cleaning Docker resources..."
+	docker-compose down
+	docker image prune -f
+
+## docker-clean-all: 清理所有 Docker 资源（包括数据卷）
+docker-clean-all:
+	@echo "WARNING: This will delete all data!"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker-compose down -v; \
+		docker image prune -f; \
+		echo "All Docker resources cleaned"; \
+	else \
+		echo "Cancelled"; \
+	fi
+
+## docker-shell-api: 进入 API 容器
+docker-shell-api:
+	docker-compose exec api sh
+
+## docker-shell-db: 进入数据库容器
+docker-shell-db:
+	docker-compose exec postgres psql -U ajoliving -d ajoliving_db
+
+## docker-deploy: 一键部署到 Docker
+docker-deploy:
+	@chmod +x scripts/deploy_docker.sh
+	@./scripts/deploy_docker.sh
 
 ## help: 显示帮助信息
 help:

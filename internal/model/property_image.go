@@ -24,9 +24,9 @@ func (PropertyImage) TableName() string {
 	return "property_images"
 }
 
-// IsCover 判断是否为封面图
-func (pi *PropertyImage) IsCover() bool {
-	return pi.ImageType == ImageTypeCover
+// CheckIsCover 判断是否为封面图
+func (pi *PropertyImage) CheckIsCover() bool {
+	return pi.IsCover
 }
 
 // IsInterior 判断是否为室内图

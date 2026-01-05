@@ -78,8 +78,8 @@ func (np *NewProperty) IsCompleted() bool {
 	return np.Status == NewPropertyStatusCompleted
 }
 
-// IsFeatured 判断是否为精选
-func (np *NewProperty) IsFeatured() bool {
+// CheckIsFeatured 判断是否为精选
+func (np *NewProperty) CheckIsFeatured() bool {
 	return np.IsFeatured
 }
 

@@ -54,8 +54,8 @@ func (Estate) TableName() string {
 	return "estates"
 }
 
-// IsFeatured 判断是否为精选屋苑
-func (e *Estate) IsFeatured() bool {
+// CheckIsFeatured 判断是否为精选屋苑
+func (e *Estate) CheckIsFeatured() bool {
 	return e.IsFeatured
 }
 

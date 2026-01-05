@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/model"

@@ -352,12 +352,4 @@ func convertToSchoolListItemResponse(school *model.School) *response.SchoolListI
 }
 
 // 这些转换函数需要在对应的 service 中实现，这里为了编译通过临时添加
-func convertToPropertyListItemResponse(property *model.Property) *response.PropertyListItemResponse {
-	// 这个函数应该在 property_service.go 中实现
-	return &response.PropertyListItemResponse{}
-}
 
-func convertToEstateListItemResponse(estate *model.Estate) *response.EstateListItemResponse {
-	// 这个函数应该在 estate_service.go 中实现
-	return &response.EstateListItemResponse{}
-}

@@ -128,25 +128,25 @@ func (s *newPropertyService) toNewDevelopmentResponse(np *model.NewProperty) *re
 	resp := &response.NewDevelopmentResponse{
 		ID:                 np.ID,
 		Name:               np.Name,
-		NameEn:             np.NameEn,
+		NameEn:             derefString(np.NameEn),
 		Address:            np.Address,
 		DistrictID:         np.DistrictID,
 		Status:             string(np.Status),
-		UnitsForSale:       np.UnitsForSale,
-		UnitsSold:          np.UnitsSold,
+		UnitsForSale:       derefInt(np.UnitsForSale),
+		UnitsSold:          derefInt(np.UnitsSold),
 		Developer:          np.Developer,
-		ManagementCompany:  np.ManagementCompany,
+		ManagementCompany:  derefString(np.ManagementCompany),
 		TotalUnits:         np.TotalUnits,
 		TotalBlocks:        np.TotalBlocks,
 		MaxFloors:          np.MaxFloors,
-		PrimarySchoolNet:   np.PrimarySchoolNet,
-		SecondarySchoolNet: np.SecondarySchoolNet,
-		WebsiteURL:         np.WebsiteURL,
-		SalesOfficeAddress: np.SalesOfficeAddress,
-		SalesPhone:         np.SalesPhone,
+		PrimarySchoolNet:   derefString(np.PrimarySchoolNet),
+		SecondarySchoolNet: derefString(np.SecondarySchoolNet),
+		WebsiteURL:         derefString(np.WebsiteURL),
+		SalesOfficeAddress: derefString(np.SalesOfficeAddress),
+		SalesPhone:         derefString(np.SalesPhone),
 		ExpectedCompletion: np.ExpectedCompletion,
 		OccupationDate:     np.OccupationDate,
-		Description:        np.Description,
+		Description:        derefString(np.Description),
 		ViewCount:          np.ViewCount,
 		FavoriteCount:      np.FavoriteCount,
 		IsFeatured:         np.IsFeatured,
@@ -158,10 +158,11 @@ func (s *newPropertyService) toNewDevelopmentResponse(np *model.NewProperty) *re
 	// 地区信息
 	if np.District != nil {
 		resp.District = &response.DistrictResponse{
-			ID:     np.District.ID,
-			Name:   np.District.Name,
-			NameEn: np.District.NameEn,
-			Region: np.District.Region,
+			ID:         np.District.ID,
+			NameZhHant: np.District.NameZhHant,
+			NameZhHans: derefString(np.District.NameZhHans),
+			NameEn:     derefString(np.District.NameEn),
+			Region:     string(np.District.Region),
 		}
 	}
 
@@ -172,8 +173,8 @@ func (s *newPropertyService) toNewDevelopmentResponse(np *model.NewProperty) *re
 			resp.Images[i] = response.NewDevelopmentImageResponse{
 				ID:        img.ID,
 				URL:       img.ImageURL,
-				ImageType: img.ImageType,
-				Title:     img.Title,
+				ImageType: string(img.ImageType),
+				Title:     derefString(img.Title),
 				SortOrder: img.SortOrder,
 			}
 		}
@@ -195,13 +196,13 @@ func (s *newPropertyService) toNewDevelopmentListItemResponse(np *model.NewPrope
 	resp := &response.NewDevelopmentListItemResponse{
 		ID:                 np.ID,
 		Name:               np.Name,
-		NameEn:             np.NameEn,
+		NameEn:             derefString(np.NameEn),
 		Address:            np.Address,
 		DistrictID:         np.DistrictID,
 		Status:             string(np.Status),
 		Developer:          np.Developer,
 		TotalUnits:         np.TotalUnits,
-		UnitsForSale:       np.UnitsForSale,
+		UnitsForSale:       derefInt(np.UnitsForSale),
 		ExpectedCompletion: np.ExpectedCompletion,
 		ViewCount:          np.ViewCount,
 		FavoriteCount:      np.FavoriteCount,
@@ -213,10 +214,11 @@ func (s *newPropertyService) toNewDevelopmentListItemResponse(np *model.NewPrope
 	// 地区信息
 	if np.District != nil {
 		resp.District = &response.DistrictResponse{
-			ID:     np.District.ID,
-			Name:   np.District.Name,
-			NameEn: np.District.NameEn,
-			Region: np.District.Region,
+			ID:         np.District.ID,
+			NameZhHant: np.District.NameZhHant,
+			NameZhHans: derefString(np.District.NameZhHans),
+			NameEn:     derefString(np.District.NameEn),
+			Region:     string(np.District.Region),
 		}
 	}
 
@@ -232,7 +234,7 @@ func (s *newPropertyService) toNewDevelopmentListItemResponse(np *model.NewPrope
 			if minPrice == 0 || layout.MinPrice < minPrice {
 				minPrice = layout.MinPrice
 			}
-			layoutMax := layout.MaxPrice
+			layoutMax := derefFloat64(layout.MaxPrice)
 			if layoutMax == 0 {
 				layoutMax = layout.MinPrice
 			}
@@ -258,13 +260,37 @@ func (s *newPropertyService) toLayoutResponse(layout *model.NewPropertyLayout) r
 		ID:             layout.ID,
 		UnitType:       layout.UnitType,
 		Bedrooms:       layout.Bedrooms,
-		Bathrooms:      layout.Bathrooms,
+		Bathrooms:      derefInt(layout.Bathrooms),
 		SaleableArea:   layout.SaleableArea,
-		GrossArea:      layout.GrossArea,
+		GrossArea:      derefFloat64(layout.GrossArea),
 		MinPrice:       layout.MinPrice,
-		MaxPrice:       layout.MaxPrice,
+		MaxPrice:       derefFloat64(layout.MaxPrice),
 		PricePerSqft:   pricePerSqft,
 		AvailableUnits: layout.AvailableUnits,
-		FloorplanURL:   layout.FloorplanURL,
+		FloorplanURL:   derefString(layout.FloorplanURL),
 	}
+}
+
+// derefString 解引用 string 指针，返回值或空字符串
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// derefInt 解引用 int 指针，返回值或 0
+func derefInt(i *int) int {
+	if i == nil {
+		return 0
+	}
+	return *i
+}
+
+// derefFloat64 解引用 float64 指针，返回值或 0
+func derefFloat64(f *float64) float64 {
+	if f == nil {
+		return 0
+	}
+	return *f
 }

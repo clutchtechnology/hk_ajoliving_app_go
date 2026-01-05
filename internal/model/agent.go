@@ -70,8 +70,8 @@ func (a *Agent) IsActive() bool {
 	return a.Status == AgentStatusActive
 }
 
-// IsVerified 判断牌照是否已验证
-func (a *Agent) IsVerified() bool {
+// CheckIsVerified 判断牌照是否已验证
+func (a *Agent) CheckIsVerified() bool {
 	return a.IsVerified
 }
 

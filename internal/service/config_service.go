@@ -157,16 +157,16 @@ func (s *configService) GetRegions(ctx context.Context) (*response.RegionsRespon
 
 	// 将地区归类到区域
 	for _, district := range districts {
-		regionCode := getRegionCode(district.NameEn)
+		regionCode := getRegionCode(func() string { if district.NameEn != nil { return *district.NameEn }; return "" }())
 		if region, ok := regionMap[regionCode]; ok {
 			districtConfig := &response.DistrictConfig{
 				ID:            district.ID,
 				RegionID:      0, // 可以添加 region_id 字段到 District 模型
-				Code:          district.Code,
+				// Code:          district.Code, // TODO: 添加Code字段到District model
 				NameZhHant:    district.NameZhHant,
-				NameZhHans:    district.NameZhHans,
-				NameEn:        district.NameEn,
-				DisplayOrder:  district.DisplayOrder,
+				NameZhHans:    func() string { if district.NameZhHans != nil { return *district.NameZhHans }; return "" }(),
+				NameEn:        func() string { if district.NameEn != nil { return *district.NameEn }; return "" }(),
+				DisplayOrder:  district.SortOrder,
 				PropertyCount: propertyCountMap[district.ID],
 				EstateCount:   estateCountMap[district.ID],
 			}

@@ -89,14 +89,6 @@ type PublisherBasicResponse struct {
 	PublisherType string `json:"publisher_type"`
 }
 
-// DistrictBasicResponse 地区基本信息响应
-type DistrictBasicResponse struct {
-	ID         uint   `json:"id"`
-	NameZhHant string `json:"name_zh_hant"`
-	NameZhHans *string `json:"name_zh_hans,omitempty"`
-	NameEn     *string `json:"name_en,omitempty"`
-}
-
 // CreateFurnitureResponse 创建家具响应
 type CreateFurnitureResponse struct {
 	ID          uint      `json:"id"`

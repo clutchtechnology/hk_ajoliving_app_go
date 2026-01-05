@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"context"
 
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
@@ -84,14 +85,19 @@ func (s *estateService) GetEstateStatistics(ctx context.Context, id uint) (*resp
 		return nil, errors.ErrNotFound
 	}
 
+	var avgPrice float64
+	if estate.AvgTransactionPrice != nil {
+		avgPrice = *estate.AvgTransactionPrice
+	}
+
 	return &response.EstateStatisticsResponse{
-		EstateID:                   estate.ID,
-		EstateName:                 estate.Name,
-		RecentTransactionsCount:    estate.RecentTransactionsCount,
-		ForSaleCount:               estate.ForSaleCount,
-		ForRentCount:               estate.ForRentCount,
-		AvgTransactionPrice:        estate.AvgTransactionPrice,
-		AvgTransactionPriceUpdated: estate.AvgTransactionPriceUpdatedAt,
+		EstateID:                estate.ID,
+		EstateName:              estate.Name,
+		RecentTransactions:      estate.RecentTransactionsCount,
+		ForSaleCount:            estate.ForSaleCount,
+		ForRentCount:            estate.ForRentCount,
+		AvgTransactionPrice:     avgPrice,
+		LastTransactionDate:     estate.AvgTransactionPriceUpdatedAt,
 	}, nil
 }
 
@@ -112,18 +118,36 @@ func (s *estateService) GetFeaturedEstates(ctx context.Context, limit int) ([]*r
 
 func (s *estateService) CreateEstate(ctx context.Context, req *request.CreateEstateRequest) (*response.EstateResponse, error) {
 	estate := &model.Estate{
-		Name:                req.Name,
-		Description:         req.Description,
-		Address:             req.Address,
-		DistrictID:          req.DistrictID,
-		TotalBlocks:         req.TotalBlocks,
-		TotalUnits:          req.TotalUnits,
-		CompletionYear:      req.CompletionYear,
-		PrimarySchoolNet:    req.PrimarySchoolNet,
-		SecondarySchoolNet:  req.SecondarySchoolNet,
-		Developer:           req.Developer,
-		ManagementCompany:   req.ManagementCompany,
-		ManagementFee:       req.ManagementFee,
+		Name:       req.Name,
+		Address:    req.Address,
+		DistrictID: req.DistrictID,
+		IsFeatured: req.IsFeatured,
+	}
+
+	// 处理可选字段
+	if req.Description != "" {
+		estate.Description = &req.Description
+	}
+	if req.TotalBlocks > 0 {
+		estate.TotalBlocks = &req.TotalBlocks
+	}
+	if req.TotalUnits > 0 {
+		estate.TotalUnits = &req.TotalUnits
+	}
+	if req.CompletionYear > 0 {
+		estate.CompletionYear = &req.CompletionYear
+	}
+	if req.Developer != "" {
+		estate.Developer = &req.Developer
+	}
+	if req.ManagementCompany != "" {
+		estate.ManagementCompany = &req.ManagementCompany
+	}
+	if req.PrimarySchoolNet != "" {
+		estate.PrimarySchoolNet = &req.PrimarySchoolNet
+	}
+	if req.SecondarySchoolNet != "" {
+		estate.SecondarySchoolNet = &req.SecondarySchoolNet
 	}
 
 	if err := s.repo.Create(ctx, estate); err != nil {
@@ -143,41 +167,38 @@ func (s *estateService) UpdateEstate(ctx context.Context, id uint, req *request.
 	}
 
 	// 更新字段
-	if req.Name != nil {
-		estate.Name = *req.Name
+	if req.Name != "" {
+		estate.Name = req.Name
 	}
-	if req.Description != nil {
-		estate.Description = *req.Description
+	if req.Description != "" {
+		estate.Description = &req.Description
 	}
-	if req.Address != nil {
-		estate.Address = *req.Address
+	if req.Address != "" {
+		estate.Address = req.Address
 	}
-	if req.DistrictID != nil {
-		estate.DistrictID = *req.DistrictID
+	if req.DistrictID > 0 {
+		estate.DistrictID = req.DistrictID
 	}
-	if req.TotalBlocks != nil {
-		estate.TotalBlocks = *req.TotalBlocks
+	if req.TotalBlocks > 0 {
+		estate.TotalBlocks = &req.TotalBlocks
 	}
-	if req.TotalUnits != nil {
-		estate.TotalUnits = *req.TotalUnits
+	if req.TotalUnits > 0 {
+		estate.TotalUnits = &req.TotalUnits
 	}
-	if req.CompletionYear != nil {
-		estate.CompletionYear = *req.CompletionYear
+	if req.CompletionYear > 0 {
+		estate.CompletionYear = &req.CompletionYear
 	}
-	if req.PrimarySchoolNet != nil {
-		estate.PrimarySchoolNet = *req.PrimarySchoolNet
+	if req.PrimarySchoolNet != "" {
+		estate.PrimarySchoolNet = &req.PrimarySchoolNet
 	}
-	if req.SecondarySchoolNet != nil {
-		estate.SecondarySchoolNet = *req.SecondarySchoolNet
+	if req.SecondarySchoolNet != "" {
+		estate.SecondarySchoolNet = &req.SecondarySchoolNet
 	}
-	if req.Developer != nil {
-		estate.Developer = *req.Developer
+	if req.Developer != "" {
+		estate.Developer = &req.Developer
 	}
-	if req.ManagementCompany != nil {
-		estate.ManagementCompany = *req.ManagementCompany
-	}
-	if req.ManagementFee != nil {
-		estate.ManagementFee = *req.ManagementFee
+	if req.ManagementCompany != "" {
+		estate.ManagementCompany = &req.ManagementCompany
 	}
 	if req.IsFeatured != nil {
 		estate.IsFeatured = *req.IsFeatured
@@ -201,31 +222,44 @@ func (s *estateService) DeleteEstate(ctx context.Context, id uint) error {
 
 // 转换为列表项响应
 func (s *estateService) toListItemResponse(estate *model.Estate) *response.EstateListItemResponse {
+	var avgPrice float64
+	if estate.AvgTransactionPrice != nil {
+		avgPrice = *estate.AvgTransactionPrice
+	}
+
+	var completionYear, age int
+	if estate.CompletionYear != nil {
+		completionYear = *estate.CompletionYear
+		age = time.Now().Year() - completionYear
+	}
+
 	resp := &response.EstateListItemResponse{
 		ID:                      estate.ID,
 		Name:                    estate.Name,
 		Address:                 estate.Address,
-		DistrictName:            "",
-		TotalBlocks:             estate.TotalBlocks,
-		TotalUnits:              estate.TotalUnits,
-		CompletionYear:          estate.CompletionYear,
-		PrimarySchoolNet:        estate.PrimarySchoolNet,
-		SecondarySchoolNet:      estate.SecondarySchoolNet,
+		DistrictID:              estate.DistrictID,
+		CompletionYear:          completionYear,
+		Age:                     age,
 		RecentTransactionsCount: estate.RecentTransactionsCount,
 		ForSaleCount:            estate.ForSaleCount,
 		ForRentCount:            estate.ForRentCount,
-		AvgTransactionPrice:     estate.AvgTransactionPrice,
+		AvgTransactionPrice:     avgPrice,
 		ViewCount:               estate.ViewCount,
+		FavoriteCount:           estate.FavoriteCount,
 		IsFeatured:              estate.IsFeatured,
-		CoverImage:              "",
+		CreatedAt:               estate.CreatedAt,
 	}
 
-	if estate.District != nil {
-		resp.DistrictName = estate.District.Name
+	// 设置地区名称
+	if estate.NameEn != nil {
+		resp.NameEn = *estate.NameEn
 	}
 
-	if len(estate.Images) > 0 {
-		resp.CoverImage = estate.Images[0].ImageURL
+	// 设置封面图片
+	for _, img := range estate.Images {
+		// 使用第一张图片作为封面
+		resp.CoverImage = img.ImageURL
+		break
 	}
 
 	return resp
@@ -233,50 +267,89 @@ func (s *estateService) toListItemResponse(estate *model.Estate) *response.Estat
 
 // 转换为详细响应
 func (s *estateService) toDetailResponse(estate *model.Estate) *response.EstateResponse {
-	resp := &response.EstateResponse{
-		ID:                      estate.ID,
-		Name:                    estate.Name,
-		Description:             estate.Description,
-		Address:                 estate.Address,
-		DistrictID:              estate.DistrictID,
-		DistrictName:            "",
-		TotalBlocks:             estate.TotalBlocks,
-		TotalUnits:              estate.TotalUnits,
-		CompletionYear:          estate.CompletionYear,
-		PrimarySchoolNet:        estate.PrimarySchoolNet,
-		SecondarySchoolNet:      estate.SecondarySchoolNet,
-		Developer:               estate.Developer,
-		ManagementCompany:       estate.ManagementCompany,
-		ManagementFee:           estate.ManagementFee,
-		RecentTransactionsCount: estate.RecentTransactionsCount,
-		ForSaleCount:            estate.ForSaleCount,
-		ForRentCount:            estate.ForRentCount,
-		AvgTransactionPrice:     estate.AvgTransactionPrice,
-		ViewCount:               estate.ViewCount,
-		IsFeatured:              estate.IsFeatured,
-		CreatedAt:               estate.CreatedAt,
-		UpdatedAt:               estate.UpdatedAt,
-		Images:                  []response.EstateImageResponse{},
-		Facilities:              []string{},
+	var avgPrice float64
+	if estate.AvgTransactionPrice != nil {
+		avgPrice = *estate.AvgTransactionPrice
 	}
 
-	if estate.District != nil {
-		resp.DistrictName = estate.District.Name
+	var totalBlocks, totalUnits, completionYear, age int
+	var nameEn, developer, managementCompany, primarySchoolNet, secondarySchoolNet, description string
+
+	if estate.TotalBlocks != nil {
+		totalBlocks = *estate.TotalBlocks
+	}
+	if estate.TotalUnits != nil {
+		totalUnits = *estate.TotalUnits
+	}
+	if estate.CompletionYear != nil {
+		completionYear = *estate.CompletionYear
+		age = time.Now().Year() - completionYear
+	}
+	if estate.NameEn != nil {
+		nameEn = *estate.NameEn
+	}
+	if estate.Developer != nil {
+		developer = *estate.Developer
+	}
+	if estate.ManagementCompany != nil {
+		managementCompany = *estate.ManagementCompany
+	}
+	if estate.PrimarySchoolNet != nil {
+		primarySchoolNet = *estate.PrimarySchoolNet
+	}
+	if estate.SecondarySchoolNet != nil {
+		secondarySchoolNet = *estate.SecondarySchoolNet
+	}
+	if estate.Description != nil {
+		description = *estate.Description
+	}
+
+	resp := &response.EstateResponse{
+		ID:                           estate.ID,
+		Name:                         estate.Name,
+		NameEn:                       nameEn,
+		Address:                      estate.Address,
+		DistrictID:                   estate.DistrictID,
+		TotalBlocks:                  totalBlocks,
+		TotalUnits:                   totalUnits,
+		CompletionYear:               completionYear,
+		Age:                          age,
+		Developer:                    developer,
+		ManagementCompany:            managementCompany,
+		PrimarySchoolNet:             primarySchoolNet,
+		SecondarySchoolNet:           secondarySchoolNet,
+		RecentTransactionsCount:      estate.RecentTransactionsCount,
+		ForSaleCount:                 estate.ForSaleCount,
+		ForRentCount:                 estate.ForRentCount,
+		AvgTransactionPrice:          avgPrice,
+		AvgTransactionPriceUpdatedAt: estate.AvgTransactionPriceUpdatedAt,
+		Description:                  description,
+		ViewCount:                    estate.ViewCount,
+		FavoriteCount:                estate.FavoriteCount,
+		IsFeatured:                   estate.IsFeatured,
+		CreatedAt:                    estate.CreatedAt,
+		UpdatedAt:                    estate.UpdatedAt,
+		Images:                       []response.EstateImageResponse{},
+		Facilities:                   []response.FacilityResponse{},
 	}
 
 	// 图片
 	for _, img := range estate.Images {
 		resp.Images = append(resp.Images, response.EstateImageResponse{
 			ID:        img.ID,
-			ImageURL:  img.ImageURL,
-			ImageType: img.ImageType,
+			URL:       img.ImageURL,
+			ImageType: string(img.ImageType),
 			SortOrder: img.SortOrder,
 		})
 	}
 
 	// 设施
 	for _, facility := range estate.Facilities {
-		resp.Facilities = append(resp.Facilities, facility.Name)
+		resp.Facilities = append(resp.Facilities, response.FacilityResponse{
+			ID:   facility.ID,
+			NameZhHant: facility.NameZhHant,
+			Icon: facility.Icon,
+		})
 	}
 
 	return resp

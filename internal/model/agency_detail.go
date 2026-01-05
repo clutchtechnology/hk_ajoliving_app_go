@@ -2,8 +2,6 @@ package model
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // AgencyDetail 代理公司详情表模型
@@ -40,8 +38,8 @@ func (AgencyDetail) TableName() string {
 	return "agency_details"
 }
 
-// IsVerified 判断是否已验证
-func (ad *AgencyDetail) IsVerified() bool {
+// CheckIsVerified 判断是否已验证
+func (ad *AgencyDetail) CheckIsVerified() bool {
 	return ad.IsVerified
 }
 

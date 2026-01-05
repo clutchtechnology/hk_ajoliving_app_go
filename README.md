@@ -1,8 +1,83 @@
-# AJO Living API 接口文档
+# AJO Living API
+
+香港房产服务平台后端 API - Go 语言开发
 
 **共计 175 个 API 接口**
 
+## 🚀 快速开始 (Docker)
+
+### 方式一：一键启动
+
+```bash
+# 克隆项目
+git clone https://github.com/clutchtechnology/hk_ajoliving_app_go.git
+cd hk_ajoliving_app_go
+
+# 一键启动所有服务
+./scripts/quick_start.sh
+```
+
+服务将在几分钟内启动完成：
+- 🌐 API: http://localhost:8080
+- 🗄️ PostgreSQL: localhost:5432
+- 💾 Redis: localhost:6379
+
+### 方式二：使用部署脚本
+
+```bash
+# 构建镜像
+./scripts/deploy_docker.sh build
+
+# 启动服务
+./scripts/deploy_docker.sh up
+
+# 查看状态
+./scripts/deploy_docker.sh status
+
+# 查看日志
+./scripts/deploy_docker.sh logs
+```
+
+### 方式三：手动操作
+
+```bash
+# 创建环境变量
+cp .env.example .env
+
+# 启动服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f api
+```
+
+### 测试 API
+
+```bash
+# 运行测试脚本
+./scripts/test_api.sh
+
+# 或手动测试
+curl http://localhost:8080/health
+```
+
+### 更多命令
+
+```bash
+# 使用 Makefile
+make docker-up          # 启动服务
+make docker-down        # 停止服务
+make docker-logs        # 查看日志
+make docker-shell-api   # 进入 API 容器
+make docker-shell-db    # 进入数据库
+
+# 完整 Docker 部署文档
+# 查看 docs/DOCKER_DEPLOYMENT.md
+```
+
 ---
+
+## 📚 API 接口文档
 
 ## 基础路由
 

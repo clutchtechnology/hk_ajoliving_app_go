@@ -2,14 +2,6 @@ package response
 
 import "time"
 
-// DistrictBasicResponse 地区基本响应
-type DistrictBasicResponse struct {
-	ID         uint   `json:"id"`
-	NameZhHant string `json:"name_zh_hant"`
-	NameZhHans string `json:"name_zh_hans"`
-	NameEn     string `json:"name_en"`
-}
-
 // SchoolNetListItemResponse 校网列表项响应
 type SchoolNetListItemResponse struct {
 	ID          uint                   `json:"id"`

@@ -46,8 +46,8 @@ type PropertyService struct {
 	propertyRepo repository.PropertyRepository
 }
 
-// 0. NewPropertyService 注入依赖
-func NewPropertyService(propertyRepo repository.PropertyRepository) *PropertyService {
+// 0. NewPropertySvc 注入依赖
+func NewPropertySvc(propertyRepo repository.PropertyRepository) *PropertyService {
 	return &PropertyService{
 		propertyRepo: propertyRepo,
 	}
@@ -96,7 +96,7 @@ func (s *PropertyService) CreateProperty(ctx context.Context, userID uint, req *
 		PropertyType: model.PropertyType(req.PropertyType),
 		ListingType:  model.ListingType(req.ListingType),
 		PublisherID:  userID,
-		PublisherType: model.PublisherTypeUser,
+		PublisherType: model.PublisherTypeIndividual,
 		Status:       model.PropertyStatusAvailable,
 	}
 
@@ -437,15 +437,9 @@ func (s *PropertyService) convertToResponse(p *model.Property) *response.Propert
 				ID:         f.ID,
 				NameZhHant: f.NameZhHant,
 				Category:   string(f.Category),
-			}
-			if f.NameZhHans != nil {
-				facResp.NameZhHans = *f.NameZhHans
-			}
-			if f.NameEn != nil {
-				facResp.NameEn = *f.NameEn
-			}
-			if f.Icon != nil {
-				facResp.Icon = *f.Icon
+				NameZhHans: f.NameZhHans,
+				NameEn:     f.NameEn,
+				Icon:       f.Icon,
 			}
 			resp.Facilities = append(resp.Facilities, facResp)
 		}

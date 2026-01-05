@@ -3,33 +3,33 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/handler"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/controllers"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/middleware"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/utils"
 )
 
 // SetupRouter 设置路由
 func SetupRouter(
-	baseHandler *handler.BaseHandler,
-	authHandler *handler.AuthHandler,
-	userHandler *handler.UserHandler,
-	propertyHandler *handler.PropertyHandler,
-	newPropertyHandler *handler.NewPropertyHandler,
-	servicedApartmentHandler *handler.ServicedApartmentHandler,
-	estateHandler *handler.EstateHandler,
-	valuationHandler *handler.ValuationHandler,
-	furnitureHandler *handler.FurnitureHandler,
-	cartHandler *handler.CartHandler,
-	mortgageHandler *handler.MortgageHandler,
-	newsHandler *handler.NewsHandler,
-	schoolHandler *handler.SchoolHandler,
-	agentHandler *handler.AgentHandler,
-	agencyHandler *handler.AgencyHandler,
-	priceIndexHandler *handler.PriceIndexHandler,
-	facilityHandler *handler.FacilityHandler,
-	searchHandler *handler.SearchHandler,
-	statisticsHandler *handler.StatisticsHandler,
-	configHandler *handler.ConfigHandler,
+	baseHandler *controllers.BaseHandler,
+	authHandler *controllers.AuthHandler,
+	userHandler *controllers.UserHandler,
+	propertyHandler *controllers.PropertyHandler,
+	newPropertyHandler *controllers.NewPropertyHandler,
+	servicedApartmentHandler *controllers.ServicedApartmentHandler,
+	estateHandler *controllers.EstateHandler,
+	valuationHandler *controllers.ValuationHandler,
+	furnitureHandler *controllers.FurnitureHandler,
+	cartHandler *controllers.CartHandler,
+	mortgageHandler *controllers.MortgageHandler,
+	newsHandler *controllers.NewsHandler,
+	schoolHandler *controllers.SchoolHandler,
+	agentHandler *controllers.AgentHandler,
+	agencyHandler *controllers.AgencyHandler,
+	priceIndexHandler *controllers.PriceIndexHandler,
+	facilityHandler *controllers.FacilityHandler,
+	searchHandler *controllers.SearchHandler,
+	statisticsHandler *controllers.StatisticsHandler,
+	configHandler *controllers.ConfigHandler,
 	jwtManager *utils.JWTManager,
 	logger *zap.Logger,
 ) *gin.Engine {

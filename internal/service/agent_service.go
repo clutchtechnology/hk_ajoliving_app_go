@@ -83,7 +83,7 @@ func (s *agentService) GetAgentProperties(ctx context.Context, agentID uint, pag
 	
 	result := make([]*response.PropertyListItemResponse, 0, len(properties))
 	for _, property := range properties {
-		result = append(result, convertToPropertyListItemResponse(property))
+		result = append(result, convertPropertyToListItemResponse(property))
 	}
 	
 	return result, total, nil
@@ -243,36 +243,3 @@ func convertToAgentContactResponse(contactReq *model.AgentContactRequest) *respo
 }
 
 // convertToPropertyListItemResponse 转换为房产列表项响应
-func convertToPropertyListItemResponse(property *model.Property) *response.PropertyListItemResponse {
-	resp := &response.PropertyListItemResponse{
-		ID:           property.ID,
-		Title:        property.Title,
-		Price:        property.Price,
-		Area:         property.Area,
-		Bedrooms:     property.Bedrooms,
-		Bathrooms:    property.Bathrooms,
-		PropertyType: property.PropertyType,
-		ListingType:  property.ListingType,
-		Address:      property.Address,
-		DistrictID:   property.DistrictID,
-		Status:       property.Status,
-		CreatedAt:    property.CreatedAt,
-		UpdatedAt:    property.UpdatedAt,
-	}
-	
-	if property.District != nil {
-		resp.DistrictName = property.District.NameZhHant
-	}
-	
-	if property.Estate != nil {
-		estateName := property.Estate.NameZhHant
-		resp.EstateName = &estateName
-	}
-	
-	// 设置主图
-	if len(property.Images) > 0 {
-		resp.CoverImage = property.Images[0].ImageURL
-	}
-	
-	return resp
-}

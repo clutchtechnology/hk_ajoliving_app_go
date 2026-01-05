@@ -1,7 +1,7 @@
 package response
 
-// FacilityResponse 设施响应
-type FacilityResponse struct {
+// FacilityDetailResponse 设施详细响应
+type FacilityDetailResponse struct {
 	ID         uint    `json:"id"`
 	NameZhHant string  `json:"name_zh_hant"`
 	NameZhHans *string `json:"name_zh_hans,omitempty"`
@@ -15,6 +15,6 @@ type FacilityResponse struct {
 
 // FacilityListResponse 设施列表响应
 type FacilityListResponse struct {
-	Facilities []*FacilityResponse `json:"facilities"`
-	Pagination *Pagination         `json:"pagination"`
+	Facilities []*FacilityDetailResponse `json:"facilities"`
+	Pagination *Pagination               `json:"pagination"`
 }

@@ -9,8 +9,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"github.com/clutchtechnology/hk_ajoliving_app_go/controllers"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/config"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/handler"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/model"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/utils"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/repository"
@@ -88,27 +88,27 @@ func main() {
 	statisticsService := service.NewStatisticsService(statisticsRepo, logger)
 	configService := service.NewConfigService(db, logger)
 
-	// 初始化处理器层
-	baseHandler := handler.NewBaseHandler()
-	authHandler := handler.NewAuthHandler(authService)
-	userHandler := handler.NewUserHandler(userService)
-	propertyHandler := handler.NewPropertyHandler(propertyService)
-	newPropertyHandler := handler.NewNewPropertyHandler(newPropertyService, logger)
-	servicedApartmentHandler := handler.NewServicedApartmentHandler(servicedApartmentService)
-	estateHandler := handler.NewEstateHandler(estateService)
-	valuationHandler := handler.NewValuationHandler(valuationService)
-	furnitureHandler := handler.NewFurnitureHandler(furnitureService)
-	cartHandler := handler.NewCartHandler(cartService)
-	mortgageHandler := handler.NewMortgageHandler(mortgageService)
-	newsHandler := handler.NewNewsHandler(newsService)
-	schoolHandler := handler.NewSchoolHandler(schoolService)
-	agentHandler := handler.NewAgentHandler(agentService)
-	agencyHandler := handler.NewAgencyHandler(agencyService)
-	priceIndexHandler := handler.NewPriceIndexHandler(priceIndexService)
-	facilityHandler := handler.NewFacilityHandler(facilityService)
-	searchHandler := handler.NewSearchHandler(searchService)
-	statisticsHandler := handler.NewStatisticsHandler(baseHandler, statisticsService)
-	configHandler := handler.NewConfigHandler(baseHandler, configService)
+	// 初始化控制器层
+	baseHandler := controllers.NewBaseHandler()
+	authHandler := controllers.NewAuthHandler(authService)
+	userHandler := controllers.NewUserHandler(userService)
+	propertyHandler := controllers.NewPropertyHandler(propertyService)
+	newPropertyHandler := controllers.NewNewPropertyHandler(newPropertyService, logger)
+	servicedApartmentHandler := controllers.NewServicedApartmentHandler(servicedApartmentService)
+	estateHandler := controllers.NewEstateHandler(estateService)
+	valuationHandler := controllers.NewValuationHandler(valuationService)
+	furnitureHandler := controllers.NewFurnitureHandler(furnitureService)
+	cartHandler := controllers.NewCartHandler(cartService)
+	mortgageHandler := controllers.NewMortgageHandler(mortgageService)
+	newsHandler := controllers.NewNewsHandler(newsService)
+	schoolHandler := controllers.NewSchoolHandler(schoolService)
+	agentHandler := controllers.NewAgentHandler(agentService)
+	agencyHandler := controllers.NewAgencyHandler(agencyService)
+	priceIndexHandler := controllers.NewPriceIndexHandler(priceIndexService)
+	facilityHandler := controllers.NewFacilityHandler(facilityService)
+	searchHandler := controllers.NewSearchHandler(searchService)
+	statisticsHandler := controllers.NewStatisticsHandler(baseHandler, statisticsService)
+	configHandler := controllers.NewConfigHandler(baseHandler, configService)
 
 	// 设置路由
 	r := router.SetupRouter(baseHandler, authHandler, userHandler, propertyHandler, newPropertyHandler, servicedApartmentHandler, estateHandler, valuationHandler, furnitureHandler, cartHandler, mortgageHandler, newsHandler, schoolHandler, agentHandler, agencyHandler, priceIndexHandler, facilityHandler, searchHandler, statisticsHandler, configHandler, jwtManager, logger)

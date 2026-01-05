@@ -52,9 +52,9 @@ func (s *FacilityService) ListFacilities(ctx context.Context, req *request.ListF
 	}
 
 	// 转换为响应格式
-	facilityResponses := make([]*response.FacilityResponse, len(facilities))
+	facilityResponses := make([]*response.FacilityDetailResponse, len(facilities))
 	for i, facility := range facilities {
-		facilityResponses[i] = convertToFacilityResponse(facility)
+		facilityResponses[i] = convertToFacilityDetailResponse(facility)
 	}
 
 	// 计算总页数
@@ -75,7 +75,7 @@ func (s *FacilityService) ListFacilities(ctx context.Context, req *request.ListF
 }
 
 // 2. GetFacility 获取单个设施详情
-func (s *FacilityService) GetFacility(ctx context.Context, id uint) (*response.FacilityResponse, error) {
+func (s *FacilityService) GetFacility(ctx context.Context, id uint) (*response.FacilityDetailResponse, error) {
 	facility, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -85,18 +85,17 @@ func (s *FacilityService) GetFacility(ctx context.Context, id uint) (*response.F
 		return nil, err
 	}
 
-	return convertToFacilityResponse(facility), nil
+	return convertToFacilityDetailResponse(facility), nil
 }
 
 // 3. CreateFacility 创建设施
-func (s *FacilityService) CreateFacility(ctx context.Context, req *request.CreateFacilityRequest) (*response.FacilityResponse, error) {
+func (s *FacilityService) CreateFacility(ctx context.Context, req *request.CreateFacilityRequest) (*response.FacilityDetailResponse, error) {
 	facility := &model.Facility{
 		NameZhHant: req.NameZhHant,
 		NameZhHans: req.NameZhHans,
 		NameEn:     req.NameEn,
 		Icon:       req.Icon,
 		Category:   model.FacilityCategory(req.Category),
-		SortOrder:  req.SortOrder,
 	}
 
 	if err := s.repo.Create(ctx, facility); err != nil {
@@ -105,11 +104,11 @@ func (s *FacilityService) CreateFacility(ctx context.Context, req *request.Creat
 	}
 
 	s.logger.Info("Facility created successfully", zap.Uint("id", facility.ID))
-	return convertToFacilityResponse(facility), nil
+	return convertToFacilityDetailResponse(facility), nil
 }
 
 // 4. UpdateFacility 更新设施信息
-func (s *FacilityService) UpdateFacility(ctx context.Context, id uint, req *request.UpdateFacilityRequest) (*response.FacilityResponse, error) {
+func (s *FacilityService) UpdateFacility(ctx context.Context, id uint, req *request.UpdateFacilityRequest) (*response.FacilityDetailResponse, error) {
 	// 检查设施是否存在
 	facility, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -146,7 +145,7 @@ func (s *FacilityService) UpdateFacility(ctx context.Context, id uint, req *requ
 	}
 
 	s.logger.Info("Facility updated successfully", zap.Uint("id", id))
-	return convertToFacilityResponse(facility), nil
+	return convertToFacilityDetailResponse(facility), nil
 }
 
 // 5. DeleteFacility 删除设施
@@ -170,17 +169,14 @@ func (s *FacilityService) DeleteFacility(ctx context.Context, id uint) error {
 	return nil
 }
 
-// convertToFacilityResponse 将 Facility 模型转换为响应格式
-func convertToFacilityResponse(facility *model.Facility) *response.FacilityResponse {
-	return &response.FacilityResponse{
+// convertToFacilityDetailResponse 将 Facility 模型转换为响应格式
+func convertToFacilityDetailResponse(facility *model.Facility) *response.FacilityDetailResponse {
+	return &response.FacilityDetailResponse{
 		ID:         facility.ID,
 		NameZhHant: facility.NameZhHant,
 		NameZhHans: facility.NameZhHans,
 		NameEn:     facility.NameEn,
 		Icon:       facility.Icon,
 		Category:   string(facility.Category),
-		SortOrder:  facility.SortOrder,
-		CreatedAt:  facility.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:  facility.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }

@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"gorm.io/gorm"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"

@@ -119,7 +119,7 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		DeliveryMethod:     model.DeliveryMethod(req.DeliveryMethod),
 		Status:             model.FurnitureStatusAvailable,
 		PublisherID:        userID,
-		PublisherType:      model.PublisherTypeUser,
+		PublisherType:      model.PublisherType("user"),
 		ViewCount:          0,
 		FavoriteCount:      0,
 		PublishedAt:        time.Now(),
@@ -276,7 +276,7 @@ func (s *FurnitureService) GetFurnitureImages(ctx context.Context, id uint) ([]r
 		return nil, err
 	}
 
-	return s.convertToImageResponses(images), nil
+	return s.convertToImageResponses(convertPointerSliceToSlice(images)), nil
 }
 
 // 8. UpdateFurnitureStatus 更新家具状态
@@ -435,10 +435,11 @@ func (s *FurnitureService) convertToResponse(f *model.Furniture) *response.Furni
 
 	// 发布者信息
 	if f.Publisher != nil {
+		avatar := f.Publisher.Avatar
 		resp.Publisher = &response.PublisherBasicResponse{
 			ID:            f.Publisher.ID,
-			Name:          f.Publisher.Name,
-			Avatar:        f.Publisher.Avatar,
+			Name:          f.Publisher.Username,
+			Avatar:        &avatar,
 			PublisherType: string(f.PublisherType),
 		}
 	}
@@ -495,6 +496,17 @@ func (s *FurnitureService) convertToCategoryResponse(c *model.FurnitureCategory)
 	}
 
 	return resp
+}
+
+// convertPointerSliceToSlice 将指针切片转换为值切片
+func convertPointerSliceToSlice(images []*model.FurnitureImage) []model.FurnitureImage {
+	result := make([]model.FurnitureImage, 0, len(images))
+	for _, img := range images {
+		if img != nil {
+			result = append(result, *img)
+		}
+	}
+	return result
 }
 
 // convertToImageResponses 转换为图片响应列表

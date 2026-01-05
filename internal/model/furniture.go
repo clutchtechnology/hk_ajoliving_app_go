@@ -190,8 +190,8 @@ func (fc *FurnitureCategory) HasSubcategories() bool {
 	return len(fc.Subcategories) > 0
 }
 
-// IsActive 判断是否启用
-func (fc *FurnitureCategory) IsActive() bool {
+// CheckIsActive 判断是否启用
+func (fc *FurnitureCategory) CheckIsActive() bool {
 	return fc.IsActive
 }
 
@@ -213,8 +213,8 @@ func (FurnitureImage) TableName() string {
 	return "furniture_images"
 }
 
-// IsCover 判断是否为封面图
-func (fi *FurnitureImage) IsCover() bool {
+// CheckIsCover 判断是否为封面图
+func (fi *FurnitureImage) CheckIsCover() bool {
 	return fi.IsCover
 }
 

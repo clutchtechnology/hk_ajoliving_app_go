@@ -74,8 +74,8 @@ func (sa *ServicedApartment) IsClosed() bool {
 	return sa.Status == ServicedApartmentStatusClosed
 }
 
-// IsFeatured 判断是否为精选推荐
-func (sa *ServicedApartment) IsFeatured() bool {
+// CheckIsFeatured 判断是否为精选推荐
+func (sa *ServicedApartment) CheckIsFeatured() bool {
 	return sa.IsFeatured
 }
 

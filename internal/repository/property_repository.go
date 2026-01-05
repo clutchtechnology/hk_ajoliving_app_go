@@ -29,8 +29,8 @@ type propertyRepository struct {
 	db *gorm.DB
 }
 
-// NewPropertyRepository 创建房产仓库
-func NewPropertyRepository(db *gorm.DB) PropertyRepository {
+// NewPropertyRepo 创建房产仓库实例
+func NewPropertyRepo(db *gorm.DB) PropertyRepository {
 	return &propertyRepository{db: db}
 }
 

@@ -7,12 +7,17 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
 
-# 复制 go.mod 和 go.sum 先下载依赖（利用缓存）
-COPY go.mod go.sum ./
-RUN go mod download
+# 复制 go.mod
+COPY go.mod ./
+
+# 下载依赖并生成 go.sum
+RUN go mod download && go mod tidy
 
 # 复制源代码
 COPY . .
+
+# 再次整理依赖，确保 go.sum 完整
+RUN go mod tidy
 
 # 构建应用
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /api ./cmd/api

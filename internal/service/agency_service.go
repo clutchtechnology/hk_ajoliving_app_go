@@ -114,7 +114,7 @@ func (s *agencyService) GetAgencyProperties(ctx context.Context, agencyID uint, 
 	
 	result := make([]*response.PropertyListItemResponse, 0, len(properties))
 	for _, property := range properties {
-		result = append(result, convertToPropertyListItemResponse(property))
+		result = append(result, convertPropertyToListItemResponse(property))
 	}
 	
 	return result, total, nil
@@ -238,57 +238,4 @@ func convertToAgencyResponse(agency *model.AgencyDetail, propertyCount int, topA
 		CreatedAt:              agency.CreatedAt,
 		UpdatedAt:              agency.UpdatedAt,
 	}
-}
-
-// convertToPropertyListItemResponse 转换为房产列表项响应
-func convertToPropertyListItemResponse(property *model.Property) *response.PropertyListItemResponse {
-	resp := &response.PropertyListItemResponse{
-		ID:           property.ID,
-		PropertyNo:   property.PropertyNo,
-		ListingType:  property.ListingType,
-		Title:        property.Title,
-		Price:        property.Price,
-		Area:         property.Area,
-		Address:      property.Address,
-		DistrictID:   property.DistrictID,
-		BuildingName: property.BuildingName,
-		Bedrooms:     property.Bedrooms,
-		Bathrooms:    property.Bathrooms,
-		PropertyType: property.PropertyType,
-		Status:       property.Status,
-		ViewCount:    property.ViewCount,
-		FavoriteCount: property.FavoriteCount,
-		CreatedAt:    property.CreatedAt,
-	}
-	
-	// 设置地区信息
-	if property.District != nil {
-		resp.District = &response.DistrictResponse{
-			ID:         property.District.ID,
-			NameZhHant: property.District.NameZhHant,
-			Region:     string(property.District.Region),
-		}
-		if property.District.NameZhHans != nil {
-			resp.District.NameZhHans = *property.District.NameZhHans
-		}
-		if property.District.NameEn != nil {
-			resp.District.NameEn = *property.District.NameEn
-		}
-	}
-	
-	// 设置主图
-	if len(property.Images) > 0 {
-		for _, img := range property.Images {
-			if img.IsCover {
-				resp.CoverImage = img.URL
-				break
-			}
-		}
-		// 如果没有设置封面，使用第一张图片
-		if resp.CoverImage == "" && len(property.Images) > 0 {
-			resp.CoverImage = property.Images[0].URL
-		}
-	}
-	
-	return resp
 }
