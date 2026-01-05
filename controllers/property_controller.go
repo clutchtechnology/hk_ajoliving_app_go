@@ -15,9 +15,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 )
 
 // PropertyHandlerInterface 房产处理器接口
@@ -66,14 +66,14 @@ func NewPropertyHandler(propertyService *service.PropertyService) *PropertyHandl
 // @Param        sort_order     query     string  false  "排序方向"   default(desc)
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
-// @Failure      400            {object}  response.Response
-// @Failure      500            {object}  response.Response
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
+// @Failure      400            {object}  models.Response
+// @Failure      500            {object}  models.Response
 // @Router       /api/v1/properties [get]
 func (h *PropertyHandler) ListProperties(c *gin.Context) {
-	var req request.ListPropertiesRequest
+	var req models.ListPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -93,11 +93,11 @@ func (h *PropertyHandler) ListProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 2. GetProperty 房产详情
@@ -108,29 +108,29 @@ func (h *PropertyHandler) ListProperties(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      int  true  "房产ID"
-// @Success      200  {object}  response.Response{data=response.PropertyResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      404  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.PropertyResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      404  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/properties/{id} [get]
 func (h *PropertyHandler) GetProperty(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid property ID")
+		models.BadRequest(c, "Invalid property ID")
 		return
 	}
 
 	property, err := h.propertyService.GetProperty(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == service.ErrPropertyNotFound {
-			response.NotFound(c, "Property not found")
+			models.NotFound(c, "Property not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, property)
+	models.Success(c, property)
 }
 
 // 3. CreateProperty 创建房产
@@ -141,32 +141,32 @@ func (h *PropertyHandler) GetProperty(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        body  body      request.CreatePropertyRequest  true  "房产信息"
-// @Success      201   {object}  response.Response{data=response.CreatePropertyResponse}
-// @Failure      400   {object}  response.Response
-// @Failure      401   {object}  response.Response
-// @Failure      500   {object}  response.Response
+// @Param        body  body      models.CreatePropertyRequest  true  "房产信息"
+// @Success      201   {object}  models.Response{data=models.CreatePropertyResponse}
+// @Failure      400   {object}  models.Response
+// @Failure      401   {object}  models.Response
+// @Failure      500   {object}  models.Response
 // @Router       /api/v1/properties [post]
 func (h *PropertyHandler) CreateProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		response.Unauthorized(c, "Unauthorized")
+		models.Unauthorized(c, "Unauthorized")
 		return
 	}
 
-	var req request.CreatePropertyRequest
+	var req models.CreatePropertyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.propertyService.CreateProperty(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Created(c, result)
+	models.Created(c, result)
 }
 
 // 4. UpdateProperty 更新房产
@@ -178,48 +178,48 @@ func (h *PropertyHandler) CreateProperty(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id    path      int                            true  "房产ID"
-// @Param        body  body      request.UpdatePropertyRequest  true  "房产信息"
-// @Success      200   {object}  response.Response{data=response.UpdatePropertyResponse}
-// @Failure      400   {object}  response.Response
-// @Failure      401   {object}  response.Response
-// @Failure      403   {object}  response.Response
-// @Failure      404   {object}  response.Response
-// @Failure      500   {object}  response.Response
+// @Param        body  body      models.UpdatePropertyRequest  true  "房产信息"
+// @Success      200   {object}  models.Response{data=models.UpdatePropertyResponse}
+// @Failure      400   {object}  models.Response
+// @Failure      401   {object}  models.Response
+// @Failure      403   {object}  models.Response
+// @Failure      404   {object}  models.Response
+// @Failure      500   {object}  models.Response
 // @Router       /api/v1/properties/{id} [put]
 func (h *PropertyHandler) UpdateProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		response.Unauthorized(c, "Unauthorized")
+		models.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid property ID")
+		models.BadRequest(c, "Invalid property ID")
 		return
 	}
 
-	var req request.UpdatePropertyRequest
+	var req models.UpdatePropertyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.propertyService.UpdateProperty(c.Request.Context(), userID.(uint), uint(id), &req)
 	if err != nil {
 		if err == service.ErrPropertyNotFound {
-			response.NotFound(c, "Property not found")
+			models.NotFound(c, "Property not found")
 			return
 		}
 		if err == service.ErrNotPropertyOwner {
-			response.Forbidden(c, "You are not the owner of this property")
+			models.Forbidden(c, "You are not the owner of this property")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 5. DeleteProperty 删除房产
@@ -231,41 +231,41 @@ func (h *PropertyHandler) UpdateProperty(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id   path      int  true  "房产ID"
-// @Success      200  {object}  response.Response
-// @Failure      400  {object}  response.Response
-// @Failure      401  {object}  response.Response
-// @Failure      403  {object}  response.Response
-// @Failure      404  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response
+// @Failure      400  {object}  models.Response
+// @Failure      401  {object}  models.Response
+// @Failure      403  {object}  models.Response
+// @Failure      404  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/properties/{id} [delete]
 func (h *PropertyHandler) DeleteProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		response.Unauthorized(c, "Unauthorized")
+		models.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid property ID")
+		models.BadRequest(c, "Invalid property ID")
 		return
 	}
 
 	err = h.propertyService.DeleteProperty(c.Request.Context(), userID.(uint), uint(id))
 	if err != nil {
 		if err == service.ErrPropertyNotFound {
-			response.NotFound(c, "Property not found")
+			models.NotFound(c, "Property not found")
 			return
 		}
 		if err == service.ErrNotPropertyOwner {
-			response.Forbidden(c, "You are not the owner of this property")
+			models.Forbidden(c, "You are not the owner of this property")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, gin.H{
+	models.Success(c, gin.H{
 		"message": "Property deleted successfully",
 	})
 }
@@ -279,15 +279,15 @@ func (h *PropertyHandler) DeleteProperty(c *gin.Context) {
 // @Produce      json
 // @Param        id     path      int  true   "房产ID"
 // @Param        limit  query     int  false  "数量限制"  default(6)
-// @Success      200    {object}  response.Response{data=[]response.PropertyListItemResponse}
-// @Failure      400    {object}  response.Response
-// @Failure      404    {object}  response.Response
-// @Failure      500    {object}  response.Response
+// @Success      200    {object}  models.Response{data=[]models.PropertyListItemResponse}
+// @Failure      400    {object}  models.Response
+// @Failure      404    {object}  models.Response
+// @Failure      500    {object}  models.Response
 // @Router       /api/v1/properties/{id}/similar [get]
 func (h *PropertyHandler) GetSimilarProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid property ID")
+		models.BadRequest(c, "Invalid property ID")
 		return
 	}
 
@@ -299,14 +299,14 @@ func (h *PropertyHandler) GetSimilarProperties(c *gin.Context) {
 	properties, err := h.propertyService.GetSimilarProperties(c.Request.Context(), uint(id), limit)
 	if err != nil {
 		if err == service.ErrPropertyNotFound {
-			response.NotFound(c, "Property not found")
+			models.NotFound(c, "Property not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, properties)
+	models.Success(c, properties)
 }
 
 // 7. GetFeaturedProperties 精选房源
@@ -318,8 +318,8 @@ func (h *PropertyHandler) GetSimilarProperties(c *gin.Context) {
 // @Produce      json
 // @Param        listing_type  query     string  false  "房源类型(rent/sale)"
 // @Param        limit         query     int     false  "数量限制"  default(10)
-// @Success      200           {object}  response.Response{data=[]response.PropertyListItemResponse}
-// @Failure      500           {object}  response.Response
+// @Success      200           {object}  models.Response{data=[]models.PropertyListItemResponse}
+// @Failure      500           {object}  models.Response
 // @Router       /api/v1/properties/featured [get]
 func (h *PropertyHandler) GetFeaturedProperties(c *gin.Context) {
 	listingType := c.Query("listing_type")
@@ -330,11 +330,11 @@ func (h *PropertyHandler) GetFeaturedProperties(c *gin.Context) {
 
 	properties, err := h.propertyService.GetFeaturedProperties(c.Request.Context(), listingType, limit)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, properties)
+	models.Success(c, properties)
 }
 
 // 8. GetHotProperties 热门房源
@@ -346,8 +346,8 @@ func (h *PropertyHandler) GetFeaturedProperties(c *gin.Context) {
 // @Produce      json
 // @Param        listing_type  query     string  false  "房源类型(rent/sale)"
 // @Param        limit         query     int     false  "数量限制"  default(10)
-// @Success      200           {object}  response.Response{data=[]response.PropertyListItemResponse}
-// @Failure      500           {object}  response.Response
+// @Success      200           {object}  models.Response{data=[]models.PropertyListItemResponse}
+// @Failure      500           {object}  models.Response
 // @Router       /api/v1/properties/hot [get]
 func (h *PropertyHandler) GetHotProperties(c *gin.Context) {
 	listingType := c.Query("listing_type")
@@ -358,11 +358,11 @@ func (h *PropertyHandler) GetHotProperties(c *gin.Context) {
 
 	properties, err := h.propertyService.GetHotProperties(c.Request.Context(), listingType, limit)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, properties)
+	models.Success(c, properties)
 }
 
 // 9. ListBuyProperties 买房房源列表
@@ -386,12 +386,12 @@ func (h *PropertyHandler) GetHotProperties(c *gin.Context) {
 // @Param        sort_order     query     string  false  "排序方向"   default(desc)
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/buy [get]
 func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
-	var req request.ListBuyPropertiesRequest
+	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -404,7 +404,7 @@ func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 	}
 
 	// 转换为通用列表请求
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:   req.DistrictID,
 		BuildingName: req.BuildingName,
 		MinPrice:     req.MinPrice,
@@ -423,11 +423,11 @@ func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 10. ListNewProperties 新房列表
@@ -443,12 +443,12 @@ func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 // @Param        bedrooms       query     int     false  "卧室数"
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/buy/new [get]
 func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
-	var req request.ListBuyPropertiesRequest
+	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -460,7 +460,7 @@ func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 	}
 
 	isNew := true
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:  req.DistrictID,
 		MinPrice:    req.MinPrice,
 		MaxPrice:    req.MaxPrice,
@@ -475,11 +475,11 @@ func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 11. ListSecondhandProperties 二手房列表
@@ -495,12 +495,12 @@ func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 // @Param        bedrooms       query     int     false  "卧室数"
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/buy/secondhand [get]
 func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
-	var req request.ListBuyPropertiesRequest
+	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -511,7 +511,7 @@ func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:  req.DistrictID,
 		MinPrice:    req.MinPrice,
 		MaxPrice:    req.MaxPrice,
@@ -526,11 +526,11 @@ func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 12. ListRentProperties 租房房源列表
@@ -554,12 +554,12 @@ func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 // @Param        sort_order     query     string  false  "排序方向"   default(desc)
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/rent [get]
 func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
-	var req request.ListRentPropertiesRequest
+	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -570,7 +570,7 @@ func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:   req.DistrictID,
 		BuildingName: req.BuildingName,
 		MinPrice:     req.MinPrice,
@@ -589,11 +589,11 @@ func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 13. ListShortTermRent 短租房源
@@ -609,12 +609,12 @@ func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 // @Param        bedrooms       query     int     false  "卧室数"
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/rent/short-term [get]
 func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
-	var req request.ListRentPropertiesRequest
+	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -626,7 +626,7 @@ func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 	}
 
 	req.RentType = "short"
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:  req.DistrictID,
 		MinPrice:    req.MinPrice,
 		MaxPrice:    req.MaxPrice,
@@ -641,11 +641,11 @@ func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 14. ListLongTermRent 长租房源
@@ -661,12 +661,12 @@ func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 // @Param        bedrooms       query     int     false  "卧室数"
 // @Param        page           query     int     false  "页码"       default(1)
 // @Param        page_size      query     int     false  "每页数量"   default(20)
-// @Success      200            {object}  response.PaginatedResponse{data=[]response.PropertyListItemResponse}
+// @Success      200            {object}  models.PaginatedResponse{data=[]models.PropertyListItemResponse}
 // @Router       /api/v1/properties/rent/long-term [get]
 func (h *PropertyHandler) ListLongTermRent(c *gin.Context) {
-	var req request.ListRentPropertiesRequest
+	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -678,7 +678,7 @@ func (h *PropertyHandler) ListLongTermRent(c *gin.Context) {
 	}
 
 	req.RentType = "long"
-	listReq := request.ListPropertiesRequest{
+	listReq := models.ListPropertiesRequest{
 		DistrictID:  req.DistrictID,
 		MinPrice:    req.MinPrice,
 		MaxPrice:    req.MaxPrice,
@@ -693,9 +693,9 @@ func (h *PropertyHandler) ListLongTermRent(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, properties, response.NewPagination(req.Page, req.PageSize, total))
+	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }

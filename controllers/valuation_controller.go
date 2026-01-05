@@ -3,9 +3,9 @@ package controllers
 import (
 	"strconv"
 
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,12 +41,12 @@ func NewValuationHandler(service service.ValuationService) *ValuationHandler {
 // @Param sort_order query string false "排序顺序(asc/desc)" default(desc)
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.Response{data=[]response.ValuationListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.ValuationListItemResponse}
 // @Router /valuation [get]
 func (h *ValuationHandler) ListValuations(c *gin.Context) {
-	var req request.ListValuationsRequest
+	var req models.ListValuationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -60,11 +60,11 @@ func (h *ValuationHandler) ListValuations(c *gin.Context) {
 
 	valuations, total, err := h.service.ListValuations(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, valuations, req.Page, req.PageSize, total)
+	models.SuccessWithPagination(c, valuations, req.Page, req.PageSize, total)
 }
 
 // 2. GetEstateValuation -> 获取指定屋苑估价参考
@@ -74,23 +74,23 @@ func (h *ValuationHandler) ListValuations(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param estateId path int true "屋苑ID"
-// @Success 200 {object} response.Response{data=response.ValuationResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=models.ValuationResponse}
+// @Failure 404 {object} models.Response
 // @Router /valuation/{estateId} [get]
 func (h *ValuationHandler) GetEstateValuation(c *gin.Context) {
 	estateID, err := strconv.ParseUint(c.Param("estateId"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid estate id")
+		models.BadRequest(c, "invalid estate id")
 		return
 	}
 
 	valuation, err := h.service.GetEstateValuation(c.Request.Context(), uint(estateID))
 	if err != nil {
-		response.NotFound(c, "estate valuation not found")
+		models.NotFound(c, "estate valuation not found")
 		return
 	}
 
-	response.Success(c, valuation)
+	models.Success(c, valuation)
 }
 
 // 3. SearchValuations -> 搜索屋苑估价
@@ -105,12 +105,12 @@ func (h *ValuationHandler) GetEstateValuation(c *gin.Context) {
 // @Param max_price query number false "最高价格"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.Response{data=[]response.ValuationListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.ValuationListItemResponse}
 // @Router /valuation/search [get]
 func (h *ValuationHandler) SearchValuations(c *gin.Context) {
-	var req request.SearchValuationsRequest
+	var req models.SearchValuationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -124,11 +124,11 @@ func (h *ValuationHandler) SearchValuations(c *gin.Context) {
 
 	valuations, total, err := h.service.SearchValuations(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, valuations, req.Page, req.PageSize, total)
+	models.SuccessWithPagination(c, valuations, req.Page, req.PageSize, total)
 }
 
 // 4. GetDistrictValuations -> 获取地区屋苑估价列表
@@ -140,13 +140,13 @@ func (h *ValuationHandler) SearchValuations(c *gin.Context) {
 // @Param districtId path int true "地区ID"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.Response{data=response.DistrictValuationResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=models.DistrictValuationResponse}
+// @Failure 404 {object} models.Response
 // @Router /valuation/districts/{districtId} [get]
 func (h *ValuationHandler) GetDistrictValuations(c *gin.Context) {
 	districtID, err := strconv.ParseUint(c.Param("districtId"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid district id")
+		models.BadRequest(c, "invalid district id")
 		return
 	}
 
@@ -164,9 +164,9 @@ func (h *ValuationHandler) GetDistrictValuations(c *gin.Context) {
 
 	valuation, err := h.service.GetDistrictValuations(c.Request.Context(), uint(districtID), page, pageSize)
 	if err != nil {
-		response.NotFound(c, "district valuations not found")
+		models.NotFound(c, "district valuations not found")
 		return
 	}
 
-	response.Success(c, valuation)
+	models.Success(c, valuation)
 }

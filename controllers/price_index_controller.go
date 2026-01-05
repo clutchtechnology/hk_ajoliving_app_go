@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/errors"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 )
 
 // PriceIndexHandler 楼价指数处理器
@@ -51,24 +51,24 @@ func NewPriceIndexHandler(service service.PriceIndexService) *PriceIndexHandler 
 // @Param end_period query string false "结束周期 YYYY-MM"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.PaginatedResponse{data=[]response.PriceIndexListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.PaginatedResponse{data=[]models.PriceIndexListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index [get]
 func (h *PriceIndexHandler) GetPriceIndex(c *gin.Context) {
-	var filter request.GetPriceIndexRequest
+	var filter models.GetPriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, total, err := h.service.GetPriceIndex(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.SuccessWithPagination(c, indices, &response.Pagination{
+	models.SuccessWithPagination(c, indices, &models.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -82,17 +82,17 @@ func (h *PriceIndexHandler) GetPriceIndex(c *gin.Context) {
 // @Tags 楼价指数
 // @Accept json
 // @Produce json
-// @Success 200 {object} response.Response{data=response.LatestPriceIndexResponse}
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.LatestPriceIndexResponse}
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/latest [get]
 func (h *PriceIndexHandler) GetLatestPriceIndex(c *gin.Context) {
 	result, err := h.service.GetLatestPriceIndex(c.Request.Context())
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 3. GetDistrictPriceIndex 获取地区楼价指数
@@ -105,30 +105,30 @@ func (h *PriceIndexHandler) GetLatestPriceIndex(c *gin.Context) {
 // @Param start_period query string false "开始周期 YYYY-MM"
 // @Param end_period query string false "结束周期 YYYY-MM"
 // @Param limit query int false "返回记录数" default(12)
-// @Success 200 {object} response.Response{data=[]response.PriceIndexResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.PriceIndexResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/districts/{districtId} [get]
 func (h *PriceIndexHandler) GetDistrictPriceIndex(c *gin.Context) {
 	districtID, err := strconv.ParseUint(c.Param("districtId"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid district id")
+		models.BadRequest(c, "invalid district id")
 		return
 	}
 	
-	var filter request.GetDistrictPriceIndexRequest
+	var filter models.GetDistrictPriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, err := h.service.GetDistrictPriceIndex(c.Request.Context(), uint(districtID), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, indices)
+	models.Success(c, indices)
 }
 
 // 4. GetEstatePriceIndex 获取屋苑楼价指数
@@ -141,30 +141,30 @@ func (h *PriceIndexHandler) GetDistrictPriceIndex(c *gin.Context) {
 // @Param start_period query string false "开始周期 YYYY-MM"
 // @Param end_period query string false "结束周期 YYYY-MM"
 // @Param limit query int false "返回记录数" default(12)
-// @Success 200 {object} response.Response{data=[]response.PriceIndexResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.PriceIndexResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/estates/{estateId} [get]
 func (h *PriceIndexHandler) GetEstatePriceIndex(c *gin.Context) {
 	estateID, err := strconv.ParseUint(c.Param("estateId"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid estate id")
+		models.BadRequest(c, "invalid estate id")
 		return
 	}
 	
-	var filter request.GetEstatePriceIndexRequest
+	var filter models.GetEstatePriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, err := h.service.GetEstatePriceIndex(c.Request.Context(), uint(estateID), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, indices)
+	models.Success(c, indices)
 }
 
 // 5. GetPriceTrends 获取价格走势
@@ -179,29 +179,29 @@ func (h *PriceIndexHandler) GetEstatePriceIndex(c *gin.Context) {
 // @Param property_type query string false "物业类型"
 // @Param start_period query string true "开始周期 YYYY-MM"
 // @Param end_period query string true "结束周期 YYYY-MM"
-// @Success 200 {object} response.Response{data=response.PriceTrendResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.PriceTrendResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/trends [get]
 func (h *PriceIndexHandler) GetPriceTrends(c *gin.Context) {
-	var filter request.GetPriceTrendsRequest
+	var filter models.GetPriceTrendsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	trends, err := h.service.GetPriceTrends(c.Request.Context(), &filter)
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "no trend data found")
+			models.NotFound(c, "no trend data found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, trends)
+	models.Success(c, trends)
 }
 
 // 6. ComparePriceIndex 对比楼价指数
@@ -216,24 +216,24 @@ func (h *PriceIndexHandler) GetPriceTrends(c *gin.Context) {
 // @Param property_types query []string false "物业类型列表（当compare_type=property_types时使用）"
 // @Param start_period query string true "开始周期 YYYY-MM"
 // @Param end_period query string true "结束周期 YYYY-MM"
-// @Success 200 {object} response.Response{data=response.ComparePriceIndexResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.ComparePriceIndexResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/compare [get]
 func (h *PriceIndexHandler) ComparePriceIndex(c *gin.Context) {
-	var filter request.ComparePriceIndexRequest
+	var filter models.ComparePriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.ComparePriceIndex(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 7. ExportPriceData 导出价格数据
@@ -249,24 +249,24 @@ func (h *PriceIndexHandler) ComparePriceIndex(c *gin.Context) {
 // @Param start_period query string true "开始周期 YYYY-MM"
 // @Param end_period query string true "结束周期 YYYY-MM"
 // @Param format query string false "导出格式" Enums(csv, json, excel) default(csv)
-// @Success 200 {object} response.Response{data=response.ExportPriceDataResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.ExportPriceDataResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/export [get]
 func (h *PriceIndexHandler) ExportPriceData(c *gin.Context) {
-	var filter request.ExportPriceDataRequest
+	var filter models.ExportPriceDataRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.ExportPriceData(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 8. GetPriceIndexHistory 获取历史楼价指数
@@ -280,29 +280,29 @@ func (h *PriceIndexHandler) ExportPriceData(c *gin.Context) {
 // @Param estate_id query int false "屋苑ID"
 // @Param property_type query string false "物业类型"
 // @Param years query int false "查询最近几年的数据" default(5)
-// @Success 200 {object} response.Response{data=response.PriceIndexHistoryResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.PriceIndexHistoryResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/history [get]
 func (h *PriceIndexHandler) GetPriceIndexHistory(c *gin.Context) {
-	var filter request.GetPriceIndexHistoryRequest
+	var filter models.GetPriceIndexHistoryRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	history, err := h.service.GetPriceIndexHistory(c.Request.Context(), &filter)
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "no history data found")
+			models.NotFound(c, "no history data found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, history)
+	models.Success(c, history)
 }
 
 // 9. CreatePriceIndex 创建楼价指数
@@ -311,27 +311,27 @@ func (h *PriceIndexHandler) GetPriceIndexHistory(c *gin.Context) {
 // @Tags 楼价指数
 // @Accept json
 // @Produce json
-// @Param request body request.CreatePriceIndexRequest true "创建请求"
-// @Success 201 {object} response.Response{data=response.CreatePriceIndexResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Param request body models.CreatePriceIndexRequest true "创建请求"
+// @Success 201 {object} models.Response{data=models.CreatePriceIndexResponse}
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index [post]
 // @Security BearerAuth
 func (h *PriceIndexHandler) CreatePriceIndex(c *gin.Context) {
-	var req request.CreatePriceIndexRequest
+	var req models.CreatePriceIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.CreatePriceIndex(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Created(c, result)
+	models.Created(c, result)
 }
 
 // 10. UpdatePriceIndex 更新楼价指数
@@ -341,36 +341,36 @@ func (h *PriceIndexHandler) CreatePriceIndex(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "楼价指数ID"
-// @Param request body request.UpdatePriceIndexRequest true "更新请求"
-// @Success 200 {object} response.Response{data=response.UpdatePriceIndexResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Param request body models.UpdatePriceIndexRequest true "更新请求"
+// @Success 200 {object} models.Response{data=models.UpdatePriceIndexResponse}
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/price-index/{id} [put]
 // @Security BearerAuth
 func (h *PriceIndexHandler) UpdatePriceIndex(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid price index id")
+		models.BadRequest(c, "invalid price index id")
 		return
 	}
 	
-	var req request.UpdatePriceIndexRequest
+	var req models.UpdatePriceIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.UpdatePriceIndex(c.Request.Context(), uint(id), &req)
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "price index not found")
+			models.NotFound(c, "price index not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, result)
+	models.Success(c, result)
 }

@@ -3,10 +3,10 @@ package controllers
 import (
 	"strconv"
 
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/errors"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,24 +41,24 @@ func NewFacilityHandler(service *service.FacilityService) *FacilityHandler {
 // @Param        page_size   query     int     false  "每页数量" default(50)
 // @Param        sort_by     query     string  false  "排序字段" default(sort_order)
 // @Param        sort_order  query     string  false  "排序方式 (asc, desc)" default(asc)
-// @Success      200  {object}  response.Response{data=response.FacilityListResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.FacilityListResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/facilities [get]
 func (h *FacilityHandler) ListFacilities(c *gin.Context) {
-	var req request.ListFacilitiesRequest
+	var req models.ListFacilitiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.ListFacilities(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 2. GetFacility -> 获取单个设施详情
@@ -69,29 +69,29 @@ func (h *FacilityHandler) ListFacilities(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      int  true  "设施ID"
-// @Success      200  {object}  response.Response{data=response.FacilityResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      404  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.FacilityResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      404  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/facilities/{id} [get]
 func (h *FacilityHandler) GetFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid facility id")
+		models.BadRequest(c, "invalid facility id")
 		return
 	}
 
 	result, err := h.service.GetFacility(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			response.NotFound(c, "facility not found")
+			models.NotFound(c, "facility not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 3. CreateFacility -> 创建设施
@@ -101,27 +101,27 @@ func (h *FacilityHandler) GetFacility(c *gin.Context) {
 // @Tags         Facilities
 // @Accept       json
 // @Produce      json
-// @Param        body  body      request.CreateFacilityRequest  true  "设施信息"
-// @Success      201   {object}  response.Response{data=response.FacilityResponse}
-// @Failure      400   {object}  response.Response
-// @Failure      401   {object}  response.Response
-// @Failure      500   {object}  response.Response
+// @Param        body  body      models.CreateFacilityRequest  true  "设施信息"
+// @Success      201   {object}  models.Response{data=models.FacilityResponse}
+// @Failure      400   {object}  models.Response
+// @Failure      401   {object}  models.Response
+// @Failure      500   {object}  models.Response
 // @Router       /api/v1/facilities [post]
 // @Security     BearerAuth
 func (h *FacilityHandler) CreateFacility(c *gin.Context) {
-	var req request.CreateFacilityRequest
+	var req models.CreateFacilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.CreateFacility(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Created(c, result)
+	models.Created(c, result)
 }
 
 // 4. UpdateFacility -> 更新设施信息
@@ -132,38 +132,38 @@ func (h *FacilityHandler) CreateFacility(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id    path      int                            true   "设施ID"
-// @Param        body  body      request.UpdateFacilityRequest  true   "设施信息"
-// @Success      200   {object}  response.Response{data=response.FacilityResponse}
-// @Failure      400   {object}  response.Response
-// @Failure      401   {object}  response.Response
-// @Failure      404   {object}  response.Response
-// @Failure      500   {object}  response.Response
+// @Param        body  body      models.UpdateFacilityRequest  true   "设施信息"
+// @Success      200   {object}  models.Response{data=models.FacilityResponse}
+// @Failure      400   {object}  models.Response
+// @Failure      401   {object}  models.Response
+// @Failure      404   {object}  models.Response
+// @Failure      500   {object}  models.Response
 // @Router       /api/v1/facilities/{id} [put]
 // @Security     BearerAuth
 func (h *FacilityHandler) UpdateFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid facility id")
+		models.BadRequest(c, "invalid facility id")
 		return
 	}
 
-	var req request.UpdateFacilityRequest
+	var req models.UpdateFacilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.UpdateFacility(c.Request.Context(), uint(id), &req)
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			response.NotFound(c, "facility not found")
+			models.NotFound(c, "facility not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 5. DeleteFacility -> 删除设施
@@ -174,28 +174,28 @@ func (h *FacilityHandler) UpdateFacility(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      int  true  "设施ID"
-// @Success      200  {object}  response.Response
-// @Failure      400  {object}  response.Response
-// @Failure      401  {object}  response.Response
-// @Failure      404  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response
+// @Failure      400  {object}  models.Response
+// @Failure      401  {object}  models.Response
+// @Failure      404  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/facilities/{id} [delete]
 // @Security     BearerAuth
 func (h *FacilityHandler) DeleteFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid facility id")
+		models.BadRequest(c, "invalid facility id")
 		return
 	}
 
 	if err := h.service.DeleteFacility(c.Request.Context(), uint(id)); err != nil {
 		if err == pkgErrors.ErrNotFound {
-			response.NotFound(c, "facility not found")
+			models.NotFound(c, "facility not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, gin.H{"message": "facility deleted successfully"})
+	models.Success(c, gin.H{"message": "facility deleted successfully"})
 }

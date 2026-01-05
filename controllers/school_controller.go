@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/errors"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 )
 
 // SchoolHandler 校网和学校处理器
@@ -37,24 +37,24 @@ func NewSchoolHandler(service service.SchoolService) *SchoolHandler {
 // @Param page_size query int false "每页数量" default(20)
 // @Param sort_by query string false "排序字段" default(net_code)
 // @Param sort_order query string false "排序方向" Enums(asc, desc) default(asc)
-// @Success 200 {object} response.PaginatedResponse{data=[]response.SchoolNetListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.PaginatedResponse{data=[]models.SchoolNetListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets [get]
 func (h *SchoolHandler) ListSchoolNets(c *gin.Context) {
-	var filter request.ListSchoolNetsRequest
+	var filter models.ListSchoolNetsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	schoolNets, total, err := h.service.ListSchoolNets(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.SuccessWithPagination(c, schoolNets, &response.Pagination{
+	models.SuccessWithPagination(c, schoolNets, &models.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -69,29 +69,29 @@ func (h *SchoolHandler) ListSchoolNets(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "校网ID"
-// @Success 200 {object} response.Response{data=response.SchoolNetResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.SchoolNetResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets/{id} [get]
 func (h *SchoolHandler) GetSchoolNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid school net id")
+		models.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	schoolNet, err := h.service.GetSchoolNet(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "school net not found")
+			models.NotFound(c, "school net not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, schoolNet)
+	models.Success(c, schoolNet)
 }
 
 // GetSchoolsInNet 获取校网内学校
@@ -101,29 +101,29 @@ func (h *SchoolHandler) GetSchoolNet(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "校网ID"
-// @Success 200 {object} response.Response{data=[]response.SchoolListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.SchoolListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets/{id}/schools [get]
 func (h *SchoolHandler) GetSchoolsInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid school net id")
+		models.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	schools, err := h.service.GetSchoolsInNet(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "school net not found")
+			models.NotFound(c, "school net not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, schools)
+	models.Success(c, schools)
 }
 
 // GetPropertiesInNet 获取校网内房源
@@ -133,29 +133,29 @@ func (h *SchoolHandler) GetSchoolsInNet(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "校网ID"
-// @Success 200 {object} response.Response{data=[]response.PropertyListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.PropertyListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets/{id}/properties [get]
 func (h *SchoolHandler) GetPropertiesInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid school net id")
+		models.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	properties, err := h.service.GetPropertiesInNet(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "school net not found")
+			models.NotFound(c, "school net not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, properties)
+	models.Success(c, properties)
 }
 
 // GetEstatesInNet 获取校网内屋苑
@@ -165,29 +165,29 @@ func (h *SchoolHandler) GetPropertiesInNet(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "校网ID"
-// @Success 200 {object} response.Response{data=[]response.EstateListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.EstateListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets/{id}/estates [get]
 func (h *SchoolHandler) GetEstatesInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid school net id")
+		models.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	estates, err := h.service.GetEstatesInNet(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "school net not found")
+			models.NotFound(c, "school net not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, estates)
+	models.Success(c, estates)
 }
 
 // SearchSchoolNets 搜索校网
@@ -199,24 +199,24 @@ func (h *SchoolHandler) GetEstatesInNet(c *gin.Context) {
 // @Param keyword query string true "搜索关键词"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.PaginatedResponse{data=[]response.SchoolNetListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.PaginatedResponse{data=[]models.SchoolNetListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/school-nets/search [get]
 func (h *SchoolHandler) SearchSchoolNets(c *gin.Context) {
-	var filter request.SearchSchoolNetsRequest
+	var filter models.SearchSchoolNetsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	schoolNets, total, err := h.service.SearchSchoolNets(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.SuccessWithPagination(c, schoolNets, &response.Pagination{
+	models.SuccessWithPagination(c, schoolNets, &models.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -240,24 +240,24 @@ func (h *SchoolHandler) SearchSchoolNets(c *gin.Context) {
 // @Param page_size query int false "每页数量" default(20)
 // @Param sort_by query string false "排序字段" default(name_zh_hant)
 // @Param sort_order query string false "排序方向" Enums(asc, desc) default(asc)
-// @Success 200 {object} response.PaginatedResponse{data=[]response.SchoolListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.PaginatedResponse{data=[]models.SchoolListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/schools [get]
 func (h *SchoolHandler) ListSchools(c *gin.Context) {
-	var filter request.ListSchoolsRequest
+	var filter models.ListSchoolsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	schools, total, err := h.service.ListSchools(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.SuccessWithPagination(c, schools, &response.Pagination{
+	models.SuccessWithPagination(c, schools, &models.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -272,29 +272,29 @@ func (h *SchoolHandler) ListSchools(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "学校ID"
-// @Success 200 {object} response.Response{data=response.SchoolNetResponse}
-// @Failure 400 {object} response.Response
-// @Failure 404 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.Response{data=models.SchoolNetResponse}
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/schools/{id}/school-net [get]
 func (h *SchoolHandler) GetSchoolNetBySchoolID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid school id")
+		models.BadRequest(c, "invalid school id")
 		return
 	}
 	
 	schoolNet, err := h.service.GetSchoolNetBySchoolID(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, errors.ErrNotFound) {
-			response.NotFound(c, "school or school net not found")
+			models.NotFound(c, "school or school net not found")
 			return
 		}
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.Success(c, schoolNet)
+	models.Success(c, schoolNet)
 }
 
 // SearchSchools 搜索学校
@@ -306,24 +306,24 @@ func (h *SchoolHandler) GetSchoolNetBySchoolID(c *gin.Context) {
 // @Param keyword query string true "搜索关键词"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.PaginatedResponse{data=[]response.SchoolListItemResponse}
-// @Failure 400 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Success 200 {object} models.PaginatedResponse{data=[]models.SchoolListItemResponse}
+// @Failure 400 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /api/v1/schools/search [get]
 func (h *SchoolHandler) SearchSchools(c *gin.Context) {
-	var filter request.SearchSchoolsRequest
+	var filter models.SearchSchoolsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 	
 	schools, total, err := h.service.SearchSchools(c.Request.Context(), &filter)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 	
-	response.SuccessWithPagination(c, schools, &response.Pagination{
+	models.SuccessWithPagination(c, schools, &models.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,

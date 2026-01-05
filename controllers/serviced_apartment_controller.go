@@ -3,9 +3,9 @@ package controllers
 import (
 	"strconv"
 
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -45,12 +45,12 @@ func NewServicedApartmentHandler(service service.ServicedApartmentService) *Serv
 // @Param page_size query int false "每页数量" default(20)
 // @Param sort_by query string false "排序字段" default(created_at)
 // @Param sort_order query string false "排序顺序(asc/desc)" default(desc)
-// @Success 200 {object} response.Response{data=[]response.ServicedApartmentListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.ServicedApartmentListItemResponse}
 // @Router /serviced-apartments [get]
 func (h *ServicedApartmentHandler) ListServicedApartments(c *gin.Context) {
-	var req request.ListServicedApartmentsRequest
+	var req models.ListServicedApartmentsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -64,11 +64,11 @@ func (h *ServicedApartmentHandler) ListServicedApartments(c *gin.Context) {
 
 	apartments, total, err := h.service.ListServicedApartments(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.SuccessWithPagination(c, apartments, req.Page, req.PageSize, total)
+	models.SuccessWithPagination(c, apartments, req.Page, req.PageSize, total)
 }
 
 // 2. GetServicedApartment -> 获取单个服务式住宅详情
@@ -78,23 +78,23 @@ func (h *ServicedApartmentHandler) ListServicedApartments(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "服务式住宅ID"
-// @Success 200 {object} response.Response{data=response.ServicedApartmentResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=models.ServicedApartmentResponse}
+// @Failure 404 {object} models.Response
 // @Router /serviced-apartments/{id} [get]
 func (h *ServicedApartmentHandler) GetServicedApartment(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid apartment id")
+		models.BadRequest(c, "invalid apartment id")
 		return
 	}
 
 	apartment, err := h.service.GetServicedApartment(c.Request.Context(), uint(id))
 	if err != nil {
-		response.NotFound(c, "serviced apartment not found")
+		models.NotFound(c, "serviced apartment not found")
 		return
 	}
 
-	response.Success(c, apartment)
+	models.Success(c, apartment)
 }
 
 // 3. GetApartmentUnits -> 获取服务式住宅单元列表
@@ -104,23 +104,23 @@ func (h *ServicedApartmentHandler) GetServicedApartment(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "服务式住宅ID"
-// @Success 200 {object} response.Response{data=[]response.ServicedApartmentUnitResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.ServicedApartmentUnitResponse}
+// @Failure 404 {object} models.Response
 // @Router /serviced-apartments/{id}/units [get]
 func (h *ServicedApartmentHandler) GetApartmentUnits(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid apartment id")
+		models.BadRequest(c, "invalid apartment id")
 		return
 	}
 
 	units, err := h.service.GetApartmentUnits(c.Request.Context(), uint(id))
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, units)
+	models.Success(c, units)
 }
 
 // 4. GetFeaturedApartments -> 获取精选服务式住宅
@@ -130,7 +130,7 @@ func (h *ServicedApartmentHandler) GetApartmentUnits(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param limit query int false "返回数量" default(10)
-// @Success 200 {object} response.Response{data=[]response.ServicedApartmentListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.ServicedApartmentListItemResponse}
 // @Router /serviced-apartments/featured [get]
 func (h *ServicedApartmentHandler) GetFeaturedApartments(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
@@ -141,11 +141,11 @@ func (h *ServicedApartmentHandler) GetFeaturedApartments(c *gin.Context) {
 
 	apartments, err := h.service.GetFeaturedApartments(c.Request.Context(), limit)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, apartments)
+	models.Success(c, apartments)
 }
 
 // 5. CreateServicedApartment -> 创建服务式住宅（需要认证）
@@ -155,15 +155,15 @@ func (h *ServicedApartmentHandler) GetFeaturedApartments(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body request.CreateServicedApartmentRequest true "服务式住宅信息"
-// @Success 201 {object} response.Response{data=response.ServicedApartmentResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
+// @Param body body models.CreateServicedApartmentRequest true "服务式住宅信息"
+// @Success 201 {object} models.Response{data=models.ServicedApartmentResponse}
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
 // @Router /serviced-apartments [post]
 func (h *ServicedApartmentHandler) CreateServicedApartment(c *gin.Context) {
-	var req request.CreateServicedApartmentRequest
+	var req models.CreateServicedApartmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -172,11 +172,11 @@ func (h *ServicedApartmentHandler) CreateServicedApartment(c *gin.Context) {
 
 	apartment, err := h.service.CreateServicedApartment(c.Request.Context(), userID, &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Created(c, apartment)
+	models.Created(c, apartment)
 }
 
 // 6. UpdateServicedApartment -> 更新服务式住宅（需要认证）
@@ -187,32 +187,32 @@ func (h *ServicedApartmentHandler) CreateServicedApartment(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "服务式住宅ID"
-// @Param body body request.UpdateServicedApartmentRequest true "更新信息"
-// @Success 200 {object} response.Response{data=response.ServicedApartmentResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 404 {object} response.Response
+// @Param body body models.UpdateServicedApartmentRequest true "更新信息"
+// @Success 200 {object} models.Response{data=models.ServicedApartmentResponse}
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Failure 404 {object} models.Response
 // @Router /serviced-apartments/{id} [put]
 func (h *ServicedApartmentHandler) UpdateServicedApartment(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid apartment id")
+		models.BadRequest(c, "invalid apartment id")
 		return
 	}
 
-	var req request.UpdateServicedApartmentRequest
+	var req models.UpdateServicedApartmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	apartment, err := h.service.UpdateServicedApartment(c.Request.Context(), uint(id), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, apartment)
+	models.Success(c, apartment)
 }
 
 // 7. DeleteServicedApartment -> 删除服务式住宅（需要认证）
@@ -223,22 +223,22 @@ func (h *ServicedApartmentHandler) UpdateServicedApartment(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "服务式住宅ID"
-// @Success 200 {object} response.Response
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Failure 404 {object} models.Response
 // @Router /serviced-apartments/{id} [delete]
 func (h *ServicedApartmentHandler) DeleteServicedApartment(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "invalid apartment id")
+		models.BadRequest(c, "invalid apartment id")
 		return
 	}
 
 	if err := h.service.DeleteServicedApartment(c.Request.Context(), uint(id)); err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, gin.H{"message": "serviced apartment deleted successfully"})
+	models.Success(c, gin.H{"message": "serviced apartment deleted successfully"})
 }

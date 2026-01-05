@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
 
 // BaseHandlerInterface 基础处理器接口
@@ -33,10 +33,10 @@ func NewBaseHandler() *BaseHandler {
 // @Tags         System
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  response.Response{data=map[string]interface{}}
+// @Success      200  {object}  models.Response{data=map[string]interface{}}
 // @Router       /api/v1/health [get]
 func (h *BaseHandler) HealthCheck(c *gin.Context) {
-	response.Success(c, gin.H{
+	models.Success(c, gin.H{
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"service":   "AJO Living API",
@@ -50,10 +50,10 @@ func (h *BaseHandler) HealthCheck(c *gin.Context) {
 // @Tags         System
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  response.Response{data=map[string]interface{}}
+// @Success      200  {object}  models.Response{data=map[string]interface{}}
 // @Router       /api/v1/version [get]
 func (h *BaseHandler) Version(c *gin.Context) {
-	response.Success(c, gin.H{
+	models.Success(c, gin.H{
 		"version":     "1.0.0",
 		"api_version": "v1",
 		"build_time":  "2025-12-18",

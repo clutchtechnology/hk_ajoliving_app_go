@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,24 +36,24 @@ func NewSearchHandler(service *service.SearchService) *SearchHandler {
 // @Param        keyword    query     string  true   "搜索关键词"
 // @Param        page       query     int     false  "页码" default(1)
 // @Param        page_size  query     int     false  "每页数量" default(20)
-// @Success      200  {object}  response.Response{data=response.GlobalSearchResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.GlobalSearchResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search [get]
 func (h *SearchHandler) GlobalSearch(c *gin.Context) {
-	var req request.GlobalSearchRequest
+	var req models.GlobalSearchRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.GlobalSearch(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 2. SearchProperties -> 搜索房产
@@ -72,24 +72,24 @@ func (h *SearchHandler) GlobalSearch(c *gin.Context) {
 // @Param        property_type  query     string   false  "物业类型"
 // @Param        page           query     int      false  "页码" default(1)
 // @Param        page_size      query     int      false  "每页数量" default(20)
-// @Success      200  {object}  response.Response{data=response.SearchPropertiesResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.SearchPropertiesResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search/properties [get]
 func (h *SearchHandler) SearchProperties(c *gin.Context) {
-	var req request.SearchPropertiesRequest
+	var req models.SearchPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchProperties(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 3. SearchEstates -> 搜索屋苑
@@ -103,24 +103,24 @@ func (h *SearchHandler) SearchProperties(c *gin.Context) {
 // @Param        district_id  query     int     false  "地区ID"
 // @Param        page         query     int     false  "页码" default(1)
 // @Param        page_size    query     int     false  "每页数量" default(20)
-// @Success      200  {object}  response.Response{data=response.SearchEstatesResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.SearchEstatesResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search/estates [get]
 func (h *SearchHandler) SearchEstates(c *gin.Context) {
-	var req request.SearchEstatesRequest
+	var req models.SearchEstatesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchEstates(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 4. SearchAgents -> 搜索代理人
@@ -134,24 +134,24 @@ func (h *SearchHandler) SearchEstates(c *gin.Context) {
 // @Param        district_id  query     int     false  "地区ID"
 // @Param        page         query     int     false  "页码" default(1)
 // @Param        page_size    query     int     false  "每页数量" default(20)
-// @Success      200  {object}  response.Response{data=response.SearchAgentsResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.SearchAgentsResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search/agents [get]
 func (h *SearchHandler) SearchAgents(c *gin.Context) {
-	var req request.SearchAgentsRequest
+	var req models.SearchAgentsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchAgents(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 5. GetSearchSuggestions -> 获取搜索建议
@@ -164,24 +164,24 @@ func (h *SearchHandler) SearchAgents(c *gin.Context) {
 // @Param        keyword  query     string  true   "搜索关键词"
 // @Param        type     query     string  false  "搜索类型 (property, estate, agent, agency)"
 // @Param        limit    query     int     false  "返回数量" default(10)
-// @Success      200  {object}  response.Response{data=response.SearchSuggestionsResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.SearchSuggestionsResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search/suggestions [get]
 func (h *SearchHandler) GetSearchSuggestions(c *gin.Context) {
-	var req request.GetSearchSuggestionsRequest
+	var req models.GetSearchSuggestionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.GetSearchSuggestions(c.Request.Context(), &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }
 
 // 6. GetSearchHistory -> 获取搜索历史
@@ -194,32 +194,32 @@ func (h *SearchHandler) GetSearchSuggestions(c *gin.Context) {
 // @Param        type       query     string  false  "搜索类型"
 // @Param        page       query     int     false  "页码" default(1)
 // @Param        page_size  query     int     false  "每页数量" default(20)
-// @Success      200  {object}  response.Response{data=response.SearchHistoryResponse}
-// @Failure      400  {object}  response.Response
-// @Failure      401  {object}  response.Response
-// @Failure      500  {object}  response.Response
+// @Success      200  {object}  models.Response{data=models.SearchHistoryResponse}
+// @Failure      400  {object}  models.Response
+// @Failure      401  {object}  models.Response
+// @Failure      500  {object}  models.Response
 // @Router       /api/v1/search/history [get]
 // @Security     BearerAuth
 func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
-	var req request.GetSearchHistoryRequest
+	var req models.GetSearchHistoryRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID（从JWT中间件设置）
 	userID, exists := c.Get("user_id")
 	if !exists {
-		response.Unauthorized(c, "user not authenticated")
+		models.Unauthorized(c, "user not authenticated")
 		return
 	}
 
 	uid := userID.(uint)
 	result, err := h.service.GetSearchHistory(c.Request.Context(), &uid, &req)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		models.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, result)
+	models.Success(c, result)
 }

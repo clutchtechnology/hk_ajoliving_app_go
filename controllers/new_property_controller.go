@@ -3,10 +3,10 @@ package controllers
 import (
 	"strconv"
 
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/dto/request"
-	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/errors"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -49,12 +49,12 @@ func NewNewPropertyHandler(svc service.NewPropertyService, logger *zap.Logger) *
 // @Param sort_order query string false "排序方向：asc/desc"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} response.Response{data=[]response.NewDevelopmentListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.NewDevelopmentListItemResponse}
 // @Router /api/v1/new-properties [get]
 func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
-	var req request.ListNewDevelopmentsRequest
+	var req models.ListNewDevelopmentsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		models.BadRequest(c, err.Error())
 		return
 	}
 
@@ -69,12 +69,12 @@ func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
 	items, total, err := h.service.ListNewDevelopments(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.Error("Failed to list new developments", zap.Error(err))
-		response.InternalError(c, "获取新楼盘列表失败")
+		models.InternalError(c, "获取新楼盘列表失败")
 		return
 	}
 
-	pagination := response.NewPagination(req.Page, req.PageSize, total)
-	response.SuccessWithPagination(c, items, pagination)
+	pagination := models.NewPagination(req.Page, req.PageSize, total)
+	models.SuccessWithPagination(c, items, pagination)
 }
 
 // GetNewDevelopment 获取新楼盘详情
@@ -84,29 +84,29 @@ func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "新楼盘ID"
-// @Success 200 {object} response.Response{data=response.NewDevelopmentResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=models.NewDevelopmentResponse}
+// @Failure 404 {object} models.Response
 // @Router /api/v1/new-properties/{id} [get]
 func (h *NewPropertyHandler) GetNewDevelopment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		response.BadRequest(c, "无效的新楼盘ID")
+		models.BadRequest(c, "无效的新楼盘ID")
 		return
 	}
 
 	newDevelopment, err := h.service.GetNewDevelopment(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			response.NotFound(c, "新楼盘不存在")
+			models.NotFound(c, "新楼盘不存在")
 			return
 		}
 		h.logger.Error("Failed to get new development", zap.Uint64("id", id), zap.Error(err))
-		response.InternalError(c, "获取新楼盘详情失败")
+		models.InternalError(c, "获取新楼盘详情失败")
 		return
 	}
 
-	response.Success(c, newDevelopment)
+	models.Success(c, newDevelopment)
 }
 
 // GetDevelopmentUnits 获取楼盘户型列表
@@ -116,29 +116,29 @@ func (h *NewPropertyHandler) GetNewDevelopment(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "新楼盘ID"
-// @Success 200 {object} response.Response{data=[]response.NewDevelopmentLayoutResponse}
-// @Failure 404 {object} response.Response
+// @Success 200 {object} models.Response{data=[]models.NewDevelopmentLayoutResponse}
+// @Failure 404 {object} models.Response
 // @Router /api/v1/new-properties/{id}/units [get]
 func (h *NewPropertyHandler) GetDevelopmentUnits(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		response.BadRequest(c, "无效的新楼盘ID")
+		models.BadRequest(c, "无效的新楼盘ID")
 		return
 	}
 
 	units, err := h.service.GetDevelopmentUnits(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			response.NotFound(c, "新楼盘不存在")
+			models.NotFound(c, "新楼盘不存在")
 			return
 		}
 		h.logger.Error("Failed to get development units", zap.Uint64("id", id), zap.Error(err))
-		response.InternalError(c, "获取楼盘户型失败")
+		models.InternalError(c, "获取楼盘户型失败")
 		return
 	}
 
-	response.Success(c, units)
+	models.Success(c, units)
 }
 
 // GetFeaturedNewDevelopments 获取精选新楼盘
@@ -148,7 +148,7 @@ func (h *NewPropertyHandler) GetDevelopmentUnits(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param limit query int false "数量限制" default(10)
-// @Success 200 {object} response.Response{data=[]response.NewDevelopmentListItemResponse}
+// @Success 200 {object} models.Response{data=[]models.NewDevelopmentListItemResponse}
 // @Router /api/v1/new-properties/featured [get]
 func (h *NewPropertyHandler) GetFeaturedNewDevelopments(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
@@ -163,9 +163,9 @@ func (h *NewPropertyHandler) GetFeaturedNewDevelopments(c *gin.Context) {
 	items, err := h.service.GetFeaturedNewDevelopments(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Error("Failed to get featured new developments", zap.Error(err))
-		response.InternalError(c, "获取精选新楼盘失败")
+		models.InternalError(c, "获取精选新楼盘失败")
 		return
 	}
 
-	response.Success(c, items)
+	models.Success(c, items)
 }

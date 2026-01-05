@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/pkg/response"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/internal/service"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -27,18 +27,18 @@ func NewConfigHandler(baseHandler *BaseHandler, service service.ConfigService) *
 // @Tags 系统配置
 // @Accept json
 // @Produce json
-// @Success 200 {object} response.Response{data=response.ConfigResponse} "配置信息"
-// @Failure 500 {object} response.Response "服务器错误"
+// @Success 200 {object} models.Response{data=models.ConfigResponse} "配置信息"
+// @Failure 500 {object} models.Response "服务器错误"
 // @Router /api/v1/config [get]
 func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	data, err := h.service.GetConfig(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取系统配置失败", zap.Error(err))
-		response.InternalError(c, "获取配置失败")
+		models.InternalError(c, "获取配置失败")
 		return
 	}
 
-	response.Success(c, data)
+	models.Success(c, data)
 }
 
 // GetRegions 获取区域配置
@@ -47,18 +47,18 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 // @Tags 系统配置
 // @Accept json
 // @Produce json
-// @Success 200 {object} response.Response{data=response.RegionsResponse} "区域配置"
-// @Failure 500 {object} response.Response "服务器错误"
+// @Success 200 {object} models.Response{data=models.RegionsResponse} "区域配置"
+// @Failure 500 {object} models.Response "服务器错误"
 // @Router /api/v1/config/regions [get]
 func (h *ConfigHandler) GetRegions(c *gin.Context) {
 	data, err := h.service.GetRegions(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取区域配置失败", zap.Error(err))
-		response.InternalError(c, "获取区域配置失败")
+		models.InternalError(c, "获取区域配置失败")
 		return
 	}
 
-	response.Success(c, data)
+	models.Success(c, data)
 }
 
 // GetPropertyTypes 获取房产类型配置
@@ -67,16 +67,16 @@ func (h *ConfigHandler) GetRegions(c *gin.Context) {
 // @Tags 系统配置
 // @Accept json
 // @Produce json
-// @Success 200 {object} response.Response{data=response.PropertyTypesResponse} "房产类型配置"
-// @Failure 500 {object} response.Response "服务器错误"
+// @Success 200 {object} models.Response{data=models.PropertyTypesResponse} "房产类型配置"
+// @Failure 500 {object} models.Response "服务器错误"
 // @Router /api/v1/config/property-types [get]
 func (h *ConfigHandler) GetPropertyTypes(c *gin.Context) {
 	data, err := h.service.GetPropertyTypes(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取房产类型配置失败", zap.Error(err))
-		response.InternalError(c, "获取房产类型配置失败")
+		models.InternalError(c, "获取房产类型配置失败")
 		return
 	}
 
-	response.Success(c, data)
+	models.Success(c, data)
 }
