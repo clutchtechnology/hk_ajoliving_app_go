@@ -127,12 +127,7 @@ func (s *schoolService) GetPropertiesInNet(ctx context.Context, schoolNetID uint
 		return nil, err
 	}
 	
-	result := make([]*models.Property, 0, len(properties))
-	for _, property := range properties {
-		result = append(result, convertToPropertyListItemResponse(property))
-	}
-	
-	return result, nil
+	return properties, nil
 }
 
 func (s *schoolService) GetEstatesInNet(ctx context.Context, schoolNetID uint) ([]*models.Estate, error) {
@@ -161,12 +156,7 @@ func (s *schoolService) GetEstatesInNet(ctx context.Context, schoolNetID uint) (
 		return nil, err
 	}
 	
-	result := make([]*models.Estate, 0, len(estates))
-	for _, estate := range estates {
-		result = append(result, convertToEstateListItemResponse(estate))
-	}
-	
-	return result, nil
+	return estates, nil
 }
 
 func (s *schoolService) SearchSchoolNets(ctx context.Context, filter *models.ListSchoolNetsRequest) ([]*models.SchoolNet, int64, error) {
@@ -180,7 +170,12 @@ func (s *schoolService) SearchSchoolNets(ctx context.Context, filter *models.Lis
 	}
 	offset := (page - 1) * pageSize
 	
-	schoolNets, total, err := s.schoolRepo.SearchSchoolNets(ctx, filter.Keyword, pageSize, offset)
+	keyword := ""
+	if filter.Keyword != nil {
+		keyword = *filter.Keyword
+	}
+	
+	schoolNets, total, err := s.schoolRepo.SearchSchoolNets(ctx, keyword, pageSize, offset)
 	if err != nil {
 		s.logger.Error("failed to search school nets", zap.Error(err))
 		return nil, 0, err
@@ -244,7 +239,12 @@ func (s *schoolService) SearchSchools(ctx context.Context, filter *models.ListSc
 	}
 	offset := (page - 1) * pageSize
 	
-	schools, total, err := s.schoolRepo.SearchSchools(ctx, filter.Keyword, pageSize, offset)
+	keyword := ""
+	if filter.Keyword != nil {
+		keyword = *filter.Keyword
+	}
+	
+	schools, total, err := s.schoolRepo.SearchSchools(ctx, keyword, pageSize, offset)
 	if err != nil {
 		s.logger.Error("failed to search schools", zap.Error(err))
 		return nil, 0, err
@@ -271,15 +271,7 @@ func convertToSchoolNetListItemResponse(sn *models.SchoolNet) *models.SchoolNet 
 		Level:       sn.Level,
 		SchoolCount: sn.SchoolCount,
 		CreatedAt:   sn.CreatedAt,
-	}
-	
-	if sn.District != nil {
-		resp.District = &models.DistrictBasicResponse{
-			ID:         sn.District.ID,
-			NameZhHant: sn.District.NameZhHant,
-			NameZhHans: sn.District.NameZhHans,
-			NameEn:     sn.District.NameEn,
-		}
+		District:    sn.District,
 	}
 	
 	return resp
@@ -299,15 +291,7 @@ func convertToSchoolNetResponse(sn *models.SchoolNet) *models.SchoolNet {
 		MapData:     sn.MapData,
 		CreatedAt:   sn.CreatedAt,
 		UpdatedAt:   sn.UpdatedAt,
-	}
-	
-	if sn.District != nil {
-		resp.District = &models.DistrictBasicResponse{
-			ID:         sn.District.ID,
-			NameZhHant: sn.District.NameZhHant,
-			NameZhHans: sn.District.NameZhHans,
-			NameEn:     sn.District.NameEn,
-		}
+		District:    sn.District,
 	}
 	
 	return resp
@@ -323,9 +307,7 @@ func convertToSchoolListItemResponse(school *models.School) *models.School {
 		NameEn:       school.NameEn,
 		SchoolCode:   school.SchoolCode,
 		Category:     school.Category,
-		CategoryName: school.GetCategoryName(),
 		Level:        school.Level,
-		LevelName:    school.GetLevelName(),
 		Gender:       school.Gender,
 		Religion:     school.Religion,
 		Address:      school.Address,
@@ -334,19 +316,9 @@ func convertToSchoolListItemResponse(school *models.School) *models.School {
 		StudentCount: school.StudentCount,
 		Rating:       school.Rating,
 		LogoURL:      school.LogoURL,
-	}
-	
-	if school.District != nil {
-		resp.District = &models.DistrictBasicResponse{
-			ID:         school.District.ID,
-			NameZhHant: school.District.NameZhHant,
-			NameZhHans: school.District.NameZhHans,
-			NameEn:     school.District.NameEn,
-		}
+		District:     school.District,
 	}
 	
 	return resp
 }
-
-// 这些转换函数需要在对应的 service 中实现，这里为了编译通过临时添加
 

@@ -1,23 +1,26 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
+
+
+
 
 // AgentHandler 代理人处理器
 type AgentHandler struct {
 	*BaseHandler
-	service service.AgentService
+	service services.AgentService
 }
 
 // NewAgentHandler 创建代理人处理器
-func NewAgentHandler(service service.AgentService) *AgentHandler {
+func NewAgentHandler(service services.AgentService) *AgentHandler {
 	return &AgentHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -48,17 +51,17 @@ func NewAgentHandler(service service.AgentService) *AgentHandler {
 func (h *AgentHandler) ListAgents(c *gin.Context) {
 	var filter models.ListAgentsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	agents, total, err := h.service.ListAgents(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, agents, &models.Pagination{
+	tools.SuccessWithPagination(c, agents, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -81,21 +84,21 @@ func (h *AgentHandler) ListAgents(c *gin.Context) {
 func (h *AgentHandler) GetAgent(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agent id")
+		tools.BadRequest(c, "invalid agent id")
 		return
 	}
 	
 	agent, err := h.service.GetAgent(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agent not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agent not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, agent)
+	tools.Success(c, agent)
 }
 
 // GetAgentProperties 获取代理人房源列表
@@ -115,7 +118,7 @@ func (h *AgentHandler) GetAgent(c *gin.Context) {
 func (h *AgentHandler) GetAgentProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agent id")
+		tools.BadRequest(c, "invalid agent id")
 		return
 	}
 	
@@ -131,15 +134,15 @@ func (h *AgentHandler) GetAgentProperties(c *gin.Context) {
 	
 	properties, total, err := h.service.GetAgentProperties(c.Request.Context(), uint(id), page, pageSize)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agent not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agent not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, properties, &models.Pagination{
+	tools.SuccessWithPagination(c, properties, &tools.Pagination{
 		Page:      page,
 		PageSize:  pageSize,
 		Total:     total,
@@ -163,13 +166,13 @@ func (h *AgentHandler) GetAgentProperties(c *gin.Context) {
 func (h *AgentHandler) ContactAgent(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agent id")
+		tools.BadRequest(c, "invalid agent id")
 		return
 	}
 	
 	var req models.ContactAgentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
@@ -183,13 +186,13 @@ func (h *AgentHandler) ContactAgent(c *gin.Context) {
 	
 	contactResp, err := h.service.ContactAgent(c.Request.Context(), uint(id), userID, &req)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agent not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agent not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, contactResp)
+	tools.Success(c, contactResp)
 }

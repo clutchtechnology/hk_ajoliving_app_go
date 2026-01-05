@@ -1,7 +1,7 @@
 package controllers
 
 // FurnitureHandler Methods:
-// 0. NewFurnitureHandler(furnitureService *service.FurnitureService) -> 注入 FurnitureService
+// 0. NewFurnitureHandler(furnitureService *services.FurnitureService) -> 注入 FurnitureService
 // 1. ListFurniture(c *gin.Context) -> 家具列表
 // 2. GetFurnitureCategories(c *gin.Context) -> 家具分类
 // 3. GetFurniture(c *gin.Context) -> 家具详情
@@ -13,6 +13,7 @@ package controllers
 // 9. GetFeaturedFurniture(c *gin.Context) -> 精选家具
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -36,11 +37,11 @@ type FurnitureHandlerInterface interface {
 
 // FurnitureHandler 家具处理器
 type FurnitureHandler struct {
-	furnitureService *service.FurnitureService
+	furnitureService *services.FurnitureService
 }
 
 // 0. NewFurnitureHandler 注入 FurnitureService
-func NewFurnitureHandler(furnitureService *service.FurnitureService) *FurnitureHandler {
+func NewFurnitureHandler(furnitureService *services.FurnitureService) *FurnitureHandler {
 	return &FurnitureHandler{
 		furnitureService: furnitureService,
 	}
@@ -73,7 +74,7 @@ func NewFurnitureHandler(furnitureService *service.FurnitureService) *FurnitureH
 func (h *FurnitureHandler) ListFurniture(c *gin.Context) {
 	var req models.ListFurnitureRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -93,11 +94,11 @@ func (h *FurnitureHandler) ListFurniture(c *gin.Context) {
 
 	furniture, total, err := h.furnitureService.ListFurniture(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, furniture, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, furniture, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 2. GetFurnitureCategories 家具分类
@@ -113,11 +114,11 @@ func (h *FurnitureHandler) ListFurniture(c *gin.Context) {
 func (h *FurnitureHandler) GetFurnitureCategories(c *gin.Context) {
 	categories, err := h.furnitureService.GetFurnitureCategories(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, categories)
+	tools.Success(c, categories)
 }
 
 // 3. GetFurniture 家具详情
@@ -136,21 +137,21 @@ func (h *FurnitureHandler) GetFurnitureCategories(c *gin.Context) {
 func (h *FurnitureHandler) GetFurniture(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid furniture ID")
+		tools.BadRequest(c, "Invalid furniture ID")
 		return
 	}
 
 	furniture, err := h.furnitureService.GetFurniture(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, furniture)
+	tools.Success(c, furniture)
 }
 
 // 4. CreateFurniture 发布家具
@@ -170,28 +171,28 @@ func (h *FurnitureHandler) GetFurniture(c *gin.Context) {
 func (h *FurnitureHandler) CreateFurniture(c *gin.Context) {
 	var req models.CreateFurnitureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID（从JWT中间件设置）
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	furniture, err := h.furnitureService.CreateFurniture(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		if err == service.ErrCategoryNotFound {
-			models.BadRequest(c, "Category not found")
+		if err == services.ErrCategoryNotFound {
+			tools.BadRequest(c, "Category not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Created(c, furniture)
+	tools.Created(c, furniture)
 }
 
 // 5. UpdateFurniture 更新家具
@@ -214,42 +215,42 @@ func (h *FurnitureHandler) CreateFurniture(c *gin.Context) {
 func (h *FurnitureHandler) UpdateFurniture(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid furniture ID")
+		tools.BadRequest(c, "Invalid furniture ID")
 		return
 	}
 
 	var req models.UpdateFurnitureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	furniture, err := h.furnitureService.UpdateFurniture(c.Request.Context(), userID.(uint), uint(id), &req)
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		if err == service.ErrNotFurnitureOwner {
-			models.Forbidden(c, "You are not the owner of this furniture")
+		if err == services.ErrNotFurnitureOwner {
+			tools.Forbidden(c, "You are not the owner of this furniture")
 			return
 		}
-		if err == service.ErrCategoryNotFound {
-			models.BadRequest(c, "Category not found")
+		if err == services.ErrCategoryNotFound {
+			tools.BadRequest(c, "Category not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, furniture)
+	tools.Success(c, furniture)
 }
 
 // 6. DeleteFurniture 删除家具
@@ -271,32 +272,32 @@ func (h *FurnitureHandler) UpdateFurniture(c *gin.Context) {
 func (h *FurnitureHandler) DeleteFurniture(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid furniture ID")
+		tools.BadRequest(c, "Invalid furniture ID")
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	err = h.furnitureService.DeleteFurniture(c.Request.Context(), userID.(uint), uint(id))
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		if err == service.ErrNotFurnitureOwner {
-			models.Forbidden(c, "You are not the owner of this furniture")
+		if err == services.ErrNotFurnitureOwner {
+			tools.Forbidden(c, "You are not the owner of this furniture")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{"message": "Furniture deleted successfully"})
+	tools.Success(c, gin.H{"message": "Furniture deleted successfully"})
 }
 
 // 7. GetFurnitureImages 家具图片
@@ -315,21 +316,21 @@ func (h *FurnitureHandler) DeleteFurniture(c *gin.Context) {
 func (h *FurnitureHandler) GetFurnitureImages(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid furniture ID")
+		tools.BadRequest(c, "Invalid furniture ID")
 		return
 	}
 
 	images, err := h.furnitureService.GetFurnitureImages(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, images)
+	tools.Success(c, images)
 }
 
 // 8. UpdateFurnitureStatus 更新家具状态
@@ -352,38 +353,38 @@ func (h *FurnitureHandler) GetFurnitureImages(c *gin.Context) {
 func (h *FurnitureHandler) UpdateFurnitureStatus(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid furniture ID")
+		tools.BadRequest(c, "Invalid furniture ID")
 		return
 	}
 
 	var req models.UpdateFurnitureStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	result, err := h.furnitureService.UpdateFurnitureStatus(c.Request.Context(), userID.(uint), uint(id), &req)
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		if err == service.ErrNotFurnitureOwner {
-			models.Forbidden(c, "You are not the owner of this furniture")
+		if err == services.ErrNotFurnitureOwner {
+			tools.Forbidden(c, "You are not the owner of this furniture")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 9. GetFeaturedFurniture 精选家具
@@ -407,9 +408,9 @@ func (h *FurnitureHandler) GetFeaturedFurniture(c *gin.Context) {
 
 	furniture, err := h.furnitureService.GetFeaturedFurniture(c.Request.Context(), limit)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, furniture)
+	tools.Success(c, furniture)
 }

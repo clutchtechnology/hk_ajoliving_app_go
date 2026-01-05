@@ -86,7 +86,7 @@ func (s *valuationService) GetDistrictValuations(ctx context.Context, districtID
 	// 构建响应
 	districtName := ""
 	if len(estates) > 0 && estates[0].District != nil {
-		districtName = estates[0].District.Name
+			districtName = estates[0].District.NameZhHant
 	}
 
 	estateList := make([]models.Estate, 0, len(estates))

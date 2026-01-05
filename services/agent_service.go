@@ -56,7 +56,7 @@ func (s *agentService) GetAgent(ctx context.Context, id uint) (*models.Agent, er
 		return nil, tools.ErrNotFound
 	}
 	
-	return agent, nil, nil
+	return agent, nil
 }
 
 // GetAgentProperties 获取代理人房源列表
@@ -78,12 +78,7 @@ func (s *agentService) GetAgentProperties(ctx context.Context, agentID uint, pag
 		return nil, 0, err
 	}
 	
-	result := make([]*models.Property, 0, len(properties))
-	for _, property := range properties {
-		result = append(result, convertPropertyToListItemResponse(property))
-	}
-	
-	return result, total, nil
+	return properties, total, nil
 }
 
 // ContactAgent 联系代理人
@@ -98,31 +93,21 @@ func (s *agentService) ContactAgent(ctx context.Context, agentID uint, userID *u
 		return nil, tools.ErrNotFound
 	}
 	
-	// 创建联系请求
-	contactReq := &models.AgentContactRequest{
-		AgentID:     agentID,
-		UserID:      userID,
-		PropertyID:  req.PropertyID,
-		Name:        req.Name,
-		Phone:       req.Phone,
-		Email:       req.Email,
-		Message:     req.Message,
-		ContactType: req.ContactType,
-	}
+	// TODO: 实现联系请求逻辑
+	// 1. 保存联系记录到数据库
+	// 2. 发送通知给代理人
+	// 3. 发送确认邮件/短信给用户
 	
-	if err := s.repo.CreateContactRequest(ctx, contactReq); err != nil {
-		s.logger.Error("failed to create contact request", zap.Error(err))
-		return nil, err
-	}
+	s.logger.Info("agent contact request received",
+		zap.Uint("agent_id", agentID),
+		zap.String("name", req.Name),
+		zap.String("phone", req.Phone),
+	)
 	
-	// 重新查询以获取关联数据
-	contactReq, err = s.repo.GetContactRequestByID(ctx, contactReq.ID)
-	if err != nil {
-		s.logger.Error("failed to get contact request", zap.Error(err))
-		return nil, err
-	}
-	
-	return &models.AgentContactResponse{Success: true, Message: "已收到您的咨询"}, nil, nil
+	return &models.AgentContactResponse{
+		Success: true,
+		Message: "已收到您的咨询，代理人将尽快与您联系",
+	}, nil
 }
 
 // 辅助函数
@@ -150,8 +135,5 @@ func convertToAgentListItemResponse(agent *models.Agent) *models.Agent {
 		CreatedAt:        agent.CreatedAt,
 	}
 	
-	// 设置代理公司名称
-	if agent.Agency != nil {	
 	return resp
-}
 }

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
@@ -11,7 +12,7 @@ import (
 )
 
 // FacilityHandler Methods:
-// 0. NewFacilityHandler(service *service.FacilityService) -> 注入 FacilityService
+// 0. NewFacilityHandler(service *services.FacilityService) -> 注入 FacilityService
 // 1. ListFacilities(c *gin.Context) -> 获取设施列表
 // 2. GetFacility(c *gin.Context) -> 获取单个设施详情
 // 3. CreateFacility(c *gin.Context) -> 创建设施
@@ -20,11 +21,11 @@ import (
 
 // FacilityHandler 设施处理器
 type FacilityHandler struct {
-	service *service.FacilityService
+	service *services.FacilityService
 }
 
 // 0. NewFacilityHandler -> 注入 FacilityService
-func NewFacilityHandler(service *service.FacilityService) *FacilityHandler {
+func NewFacilityHandler(service *services.FacilityService) *FacilityHandler {
 	return &FacilityHandler{service: service}
 }
 
@@ -48,17 +49,17 @@ func NewFacilityHandler(service *service.FacilityService) *FacilityHandler {
 func (h *FacilityHandler) ListFacilities(c *gin.Context) {
 	var req models.ListFacilitiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.ListFacilities(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 2. GetFacility -> 获取单个设施详情
@@ -77,21 +78,21 @@ func (h *FacilityHandler) ListFacilities(c *gin.Context) {
 func (h *FacilityHandler) GetFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid facility id")
+		tools.BadRequest(c, "invalid facility id")
 		return
 	}
 
 	result, err := h.service.GetFacility(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			models.NotFound(c, "facility not found")
+			tools.NotFound(c, "facility not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 3. CreateFacility -> 创建设施
@@ -111,17 +112,17 @@ func (h *FacilityHandler) GetFacility(c *gin.Context) {
 func (h *FacilityHandler) CreateFacility(c *gin.Context) {
 	var req models.CreateFacilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.CreateFacility(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Created(c, result)
+	tools.Created(c, result)
 }
 
 // 4. UpdateFacility -> 更新设施信息
@@ -143,27 +144,27 @@ func (h *FacilityHandler) CreateFacility(c *gin.Context) {
 func (h *FacilityHandler) UpdateFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid facility id")
+		tools.BadRequest(c, "invalid facility id")
 		return
 	}
 
 	var req models.UpdateFacilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.UpdateFacility(c.Request.Context(), uint(id), &req)
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			models.NotFound(c, "facility not found")
+			tools.NotFound(c, "facility not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 5. DeleteFacility -> 删除设施
@@ -184,18 +185,18 @@ func (h *FacilityHandler) UpdateFacility(c *gin.Context) {
 func (h *FacilityHandler) DeleteFacility(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid facility id")
+		tools.BadRequest(c, "invalid facility id")
 		return
 	}
 
 	if err := h.service.DeleteFacility(c.Request.Context(), uint(id)); err != nil {
 		if err == pkgErrors.ErrNotFound {
-			models.NotFound(c, "facility not found")
+			tools.NotFound(c, "facility not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{"message": "facility deleted successfully"})
+	tools.Success(c, gin.H{"message": "facility deleted successfully"})
 }

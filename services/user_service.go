@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	ErrUserNotFound       = errors.New("user not found")
 	ErrUserNotActive      = errors.New("user is not active")
 	ErrOldPasswordInvalid = errors.New("old password is invalid")
 )
@@ -26,7 +27,7 @@ type UserServiceInterface interface {
 	GetCurrentUser(ctx context.Context, userID uint) (*models.User, error)
 	UpdateCurrentUser(ctx context.Context, userID uint, req *models.User) (*models.User, error)
 	ChangePassword(ctx context.Context, userID uint, req *models.ChangePasswordRequest) error
-	GetMyListings(ctx context.Context, userID uint, page, pageSize int) (*[]models.Property, error)
+	GetMyListings(ctx context.Context, userID uint, page, pageSize int) ([]*models.Property, error)
 	UpdateSettings(ctx context.Context, userID uint, req *map[string]interface{}) (*map[string]interface{}, error)
 }
 
@@ -137,7 +138,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint, req *mode
 }
 
 // 4. GetMyListings 获取我的发布
-func (s *UserService) GetMyListings(ctx context.Context, userID uint, page, pageSize int) (*[]models.Property, error) {
+func (s *UserService) GetMyListings(ctx context.Context, userID uint, page, pageSize int) ([]*models.Property, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -145,54 +146,17 @@ func (s *UserService) GetMyListings(ctx context.Context, userID uint, page, page
 		pageSize = 20
 	}
 
-	properties, total, err := s.propertyRepo.ListByPublisher(ctx, userID, page, pageSize)
+	properties, _, err := s.propertyRepo.ListByPublisher(ctx, userID, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]models.PropertyBriefResponse, 0, len(properties))
-	for _, p := range properties {
-		coverImage := ""
-		for _, img := range p.Images {
-			if img.IsCover {
-				coverImage = img.URL
-				break
-			}
-		}
-		if coverImage == "" && len(p.Images) > 0 {
-			coverImage = p.Images[0].URL
-		}
-
-		items = append(items, models.PropertyBriefResponse{
-			ID:            p.ID,
-			PropertyNo:    p.PropertyNo,
-			Title:         p.Title,
-			Price:         p.Price,
-			Area:          p.Area,
-			Bedrooms:      p.Bedrooms,
-			ListingType:   string(p.ListingType),
-			Status:        string(p.Status),
-			CoverImage:    coverImage,
-			ViewCount:     p.ViewCount,
-			FavoriteCount: p.FavoriteCount,
-			CreatedAt:     p.CreatedAt.Format("2006-01-02 15:04:05"),
-		})
-	}
-
-	return &[]models.Property{
-		Properties: items,
-		Total:      total,
-	}, nil
+	return properties, nil
 }
 
 // 5. UpdateSettings 更新设置
 func (s *UserService) UpdateSettings(ctx context.Context, userID uint, req *map[string]interface{}) (*map[string]interface{}, error) {
 	// TODO: 实现用户设置存储（可能需要单独的 user_settings 表）
-	// 目前返回请求中的设置作为响应
-	return &map[string]interface{}{
-		Language:            req.Language,
-		NotificationEnabled: req.NotificationEnabled,
-		EmailNotification:   req.EmailNotification,
-		SmsNotification:     req.SmsNotification,
-	}, nil
+	// 目前直接返回请求中的设置作为响应
+	return req, nil
 }

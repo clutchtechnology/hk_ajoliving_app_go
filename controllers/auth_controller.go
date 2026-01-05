@@ -1,7 +1,7 @@
 package controllers
 
 // AuthHandler Methods:
-// 0. NewAuthHandler(authService *service.AuthService) -> 注入 AuthService
+// 0. NewAuthHandler(authService *services.AuthService) -> 注入 AuthService
 // 1. Register(c *gin.Context) -> 用户注册
 // 2. Login(c *gin.Context) -> 用户登录
 // 3. Logout(c *gin.Context) -> 用户登出
@@ -11,6 +11,7 @@ package controllers
 // 7. VerifyCode(c *gin.Context) -> 验证码验证
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
@@ -30,11 +31,11 @@ type AuthHandlerInterface interface {
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	authService *service.AuthService
+	authService *services.AuthService
 }
 
 // 0. NewAuthHandler 注入 AuthService
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
@@ -55,21 +56,21 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.Register(c.Request.Context(), &req)
 	if err != nil {
-		if err == service.ErrUserAlreadyExists {
-			models.BadRequest(c, "User already exists")
+		if err == services.ErrUserAlreadyExists {
+			tools.BadRequest(c, "User already exists")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 2. Login 用户登录
@@ -88,21 +89,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.Login(c.Request.Context(), &req)
 	if err != nil {
-		if err == service.ErrInvalidCredentials {
-			models.Unauthorized(c, "Invalid credentials")
+		if err == services.ErrInvalidCredentials {
+			tools.Unauthorized(c, "Invalid credentials")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 3. Logout 用户登出
@@ -121,17 +122,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// 从上下文获取用户 ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	err := h.authService.Logout(c.Request.Context(), userID.(uint))
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{
+	tools.Success(c, gin.H{
 		"message": "Logged out successfully",
 	})
 }
@@ -152,21 +153,21 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req models.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.RefreshToken(c.Request.Context(), &req)
 	if err != nil {
-		if err == service.ErrInvalidToken {
-			models.Unauthorized(c, "Invalid refresh token")
+		if err == services.ErrInvalidToken {
+			tools.Unauthorized(c, "Invalid refresh token")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 5. ForgotPassword 忘记密码
@@ -184,17 +185,17 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req models.ForgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.ForgotPassword(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 6. ResetPassword 重置密码
@@ -213,21 +214,21 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req models.ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.ResetPassword(c.Request.Context(), &req)
 	if err != nil {
-		if err == service.ErrInvalidToken {
-			models.Unauthorized(c, "Invalid or expired reset token")
+		if err == services.ErrInvalidToken {
+			tools.Unauthorized(c, "Invalid or expired reset token")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 7. VerifyCode 验证码验证
@@ -245,15 +246,15 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 func (h *AuthHandler) VerifyCode(c *gin.Context) {
 	var req models.VerifyCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.authService.VerifyCode(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }

@@ -128,16 +128,18 @@ func (s *newsService) GetRelatedNews(ctx context.Context, id uint) ([]*[]models.
 	}
 	
 	// 获取同分类的相关新闻
-	news, err := s.repo.GetRelatedNews(ctx, id, currentNews.CategoryID, 5)
+	relatedNews, err := s.repo.GetRelatedNews(ctx, id, currentNews.CategoryID, 5)
 	if err != nil {
 		s.logger.Error("failed to get related news", zap.Error(err))
 		return nil, err
 	}
 	
-	result := make([]*[]models.News, 0, len(news))
-	for _, n := range news {
-		result = append(result, convertToRelatedNewsResponse(n))
+	// 转换为所需的返回类型
+	newsSlice := make([]models.News, len(relatedNews))
+	for i, n := range relatedNews {
+		newsSlice[i] = *n
 	}
+	result := []*[]models.News{&newsSlice}
 	
 	return result, nil
 }
@@ -160,95 +162,22 @@ func (s *newsService) GetNewsCategories(ctx context.Context) ([]*models.NewsCate
 
 // 辅助函数
 
-// convertToNewsListItemResponse 转换为新闻列表项响应
+// convertToNewsListItemResponse 转换为新闻列表项响应（直接返回，预加载了关联数据）
 func convertToNewsListItemResponse(news *models.News) *models.News {
-	resp := &models.News{
-		ID:            news.ID,
-		CategoryID:    news.CategoryID,
-		Title:         news.Title,
-		Subtitle:      news.Subtitle,
-		Summary:       news.Summary,
-		CoverImageURL: news.CoverImageURL,
-		SourceName:    news.SourceName,
-		AuthorName:    news.AuthorName,
-		PublishedAt:   news.PublishedAt,
-		ViewCount:     news.ViewCount,
-		LikeCount:     news.LikeCount,
-		CommentCount:  news.CommentCount,
-		IsFeatured:    news.IsFeatured,
-		IsHot:         news.IsHot,
-		IsTop:         news.IsTop,
-		Tags:          news.GetTagList(),
-		CreatedAt:     news.CreatedAt,
-	}
-	
-	if news.Category != nil {
-		resp.Category = convertToNewsCategoryResponse(news.Category)
-	}
-	
-	return resp
+	return news
 }
 
-// convertToNewsResponse 转换为新闻详情响应
+// convertToNewsResponse 转换为新闻详情响应（直接返回，预加载了关联数据）
 func convertToNewsResponse(news *models.News) *models.News {
-	resp := &models.News{
-		ID:              news.ID,
-		CategoryID:      news.CategoryID,
-		Title:           news.Title,
-		Subtitle:        news.Subtitle,
-		Summary:         news.Summary,
-		Content:         news.Content,
-		CoverImageURL:   news.CoverImageURL,
-		SourceName:      news.SourceName,
-		SourceURL:       news.SourceURL,
-		AuthorName:      news.AuthorName,
-		PublishedAt:     news.PublishedAt,
-		ViewCount:       news.ViewCount,
-		LikeCount:       news.LikeCount,
-		CommentCount:    news.CommentCount,
-		IsFeatured:      news.IsFeatured,
-		IsHot:           news.IsHot,
-		IsTop:           news.IsTop,
-		Status:          news.Status,
-		Tags:            news.GetTagList(),
-		Keywords:        news.Keywords,
-		MetaDescription: news.MetaDescription,
-		CrawlerSource:   news.CrawlerSource,
-		CrawledAt:       news.CrawledAt,
-		CreatedAt:       news.CreatedAt,
-		UpdatedAt:       news.UpdatedAt,
-	}
-	
-	if news.Category != nil {
-		resp.Category = convertToNewsCategoryResponse(news.Category)
-	}
-	
-	return resp
+	return news
 }
 
-// convertToRelatedNewsResponse 转换为相关新闻响应
-func convertToRelatedNewsResponse(news *models.News) *[]models.News {
-	return &[]models.News{
-		ID:            news.ID,
-		Title:         news.Title,
-		Summary:       news.Summary,
-		CoverImageURL: news.CoverImageURL,
-		PublishedAt:   news.PublishedAt,
-		ViewCount:     news.ViewCount,
-	}
+// convertToRelatedNewsResponse 转换为相关新闻响应（已简化，保留供参考）
+func convertToRelatedNewsResponse(news *models.News) *models.News {
+	return news
 }
 
-// convertToNewsCategoryResponse 转换为新闻分类响应
+// convertToNewsCategoryResponse 转换为新闻分类响应（直接返回）
 func convertToNewsCategoryResponse(category *models.NewsCategory) *models.NewsCategory {
-	return &models.NewsCategory{
-		ID:          category.ID,
-		NameZhHant:  category.NameZhHant,
-		NameZhHans:  category.NameZhHans,
-		NameEn:      category.NameEn,
-		Slug:        category.Slug,
-		Description: category.Description,
-		SortOrder:   category.SortOrder,
-		CreatedAt:   category.CreatedAt,
-		UpdatedAt:   category.UpdatedAt,
-	}
+	return category
 }

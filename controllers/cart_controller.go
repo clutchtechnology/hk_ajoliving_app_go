@@ -1,7 +1,7 @@
 package controllers
 
 // CartHandler Methods:
-// 0. NewCartHandler(cartService *service.CartService) -> 注入 CartService
+// 0. NewCartHandler(cartService *services.CartService) -> 注入 CartService
 // 1. GetCart(c *gin.Context) -> 获取购物车
 // 2. AddToCart(c *gin.Context) -> 添加到购物车
 // 3. UpdateCartItem(c *gin.Context) -> 更新购物车项
@@ -9,6 +9,7 @@ package controllers
 // 5. ClearCart(c *gin.Context) -> 清空购物车
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -28,11 +29,11 @@ type CartHandlerInterface interface {
 
 // CartHandler 购物车处理器
 type CartHandler struct {
-	cartService *service.CartService
+	cartService *services.CartService
 }
 
 // 0. NewCartHandler 注入 CartService
-func NewCartHandler(cartService *service.CartService) *CartHandler {
+func NewCartHandler(cartService *services.CartService) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 	}
@@ -54,17 +55,17 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	cart, err := h.cartService.GetCart(c.Request.Context(), userID.(uint))
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, cart)
+	tools.Success(c, cart)
 }
 
 // 2. AddToCart 添加到购物车
@@ -85,32 +86,32 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 func (h *CartHandler) AddToCart(c *gin.Context) {
 	var req models.AddToCartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	result, err := h.cartService.AddToCart(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		if err == service.ErrFurnitureNotFound {
-			models.NotFound(c, "Furniture not found")
+		if err == services.ErrFurnitureNotFound {
+			tools.NotFound(c, "Furniture not found")
 			return
 		}
-		if err == service.ErrFurnitureNotAvailable {
-			models.BadRequest(c, "Furniture is not available")
+		if err == services.ErrFurnitureNotAvailable {
+			tools.BadRequest(c, "Furniture is not available")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Created(c, result)
+	tools.Created(c, result)
 }
 
 // 3. UpdateCartItem 更新购物车项
@@ -133,38 +134,38 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 func (h *CartHandler) UpdateCartItem(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid cart item ID")
+		tools.BadRequest(c, "Invalid cart item ID")
 		return
 	}
 
 	var req models.UpdateCartItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	result, err := h.cartService.UpdateCartItem(c.Request.Context(), userID.(uint), uint(id), &req)
 	if err != nil {
-		if err == service.ErrCartItemNotFound {
-			models.NotFound(c, "Cart item not found")
+		if err == services.ErrCartItemNotFound {
+			tools.NotFound(c, "Cart item not found")
 			return
 		}
-		if err == service.ErrNotCartItemOwner {
-			models.Forbidden(c, "You are not the owner of this cart item")
+		if err == services.ErrNotCartItemOwner {
+			tools.Forbidden(c, "You are not the owner of this cart item")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 4. RemoveFromCart 移除购物车项
@@ -186,32 +187,32 @@ func (h *CartHandler) UpdateCartItem(c *gin.Context) {
 func (h *CartHandler) RemoveFromCart(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid cart item ID")
+		tools.BadRequest(c, "Invalid cart item ID")
 		return
 	}
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	err = h.cartService.RemoveFromCart(c.Request.Context(), userID.(uint), uint(id))
 	if err != nil {
-		if err == service.ErrCartItemNotFound {
-			models.NotFound(c, "Cart item not found")
+		if err == services.ErrCartItemNotFound {
+			tools.NotFound(c, "Cart item not found")
 			return
 		}
-		if err == service.ErrNotCartItemOwner {
-			models.Forbidden(c, "You are not the owner of this cart item")
+		if err == services.ErrNotCartItemOwner {
+			tools.Forbidden(c, "You are not the owner of this cart item")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{"message": "Cart item removed successfully"})
+	tools.Success(c, gin.H{"message": "Cart item removed successfully"})
 }
 
 // 5. ClearCart 清空购物车
@@ -230,15 +231,15 @@ func (h *CartHandler) ClearCart(c *gin.Context) {
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "User not authenticated")
 		return
 	}
 
 	err := h.cartService.ClearCart(c.Request.Context(), userID.(uint))
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{"message": "Cart cleared successfully"})
+	tools.Success(c, gin.H{"message": "Cart cleared successfully"})
 }

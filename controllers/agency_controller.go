@@ -1,19 +1,19 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
 
 // AgencyHandler 代理公司处理器
 //
 // AgencyHandler Methods:
-// 0. NewAgencyHandler(service service.AgencyService) -> 注入 AgencyService
+// 0. NewAgencyHandler(service services.AgencyService) -> 注入 AgencyService
 // 1. ListAgencies(c *gin.Context) -> 获取代理公司列表
 // 2. GetAgency(c *gin.Context) -> 获取代理公司详情
 // 3. GetAgencyProperties(c *gin.Context) -> 获取代理公司房源列表
@@ -21,11 +21,11 @@ import (
 // 5. SearchAgencies(c *gin.Context) -> 搜索代理公司
 type AgencyHandler struct {
 	*BaseHandler
-	service service.AgencyService
+	service services.AgencyService
 }
 
 // 0. NewAgencyHandler 创建代理公司处理器
-func NewAgencyHandler(service service.AgencyService) *AgencyHandler {
+func NewAgencyHandler(service services.AgencyService) *AgencyHandler {
 	return &AgencyHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -53,17 +53,17 @@ func NewAgencyHandler(service service.AgencyService) *AgencyHandler {
 func (h *AgencyHandler) ListAgencies(c *gin.Context) {
 	var filter models.ListAgenciesRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	agencies, total, err := h.service.ListAgencies(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, agencies, &models.Pagination{
+	tools.SuccessWithPagination(c, agencies, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -86,21 +86,21 @@ func (h *AgencyHandler) ListAgencies(c *gin.Context) {
 func (h *AgencyHandler) GetAgency(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agency id")
+		tools.BadRequest(c, "invalid agency id")
 		return
 	}
 	
 	agency, err := h.service.GetAgency(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agency not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agency not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, agency)
+	tools.Success(c, agency)
 }
 
 // 3. GetAgencyProperties 获取代理公司房源列表
@@ -120,7 +120,7 @@ func (h *AgencyHandler) GetAgency(c *gin.Context) {
 func (h *AgencyHandler) GetAgencyProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agency id")
+		tools.BadRequest(c, "invalid agency id")
 		return
 	}
 	
@@ -136,15 +136,15 @@ func (h *AgencyHandler) GetAgencyProperties(c *gin.Context) {
 	
 	properties, total, err := h.service.GetAgencyProperties(c.Request.Context(), uint(id), page, pageSize)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agency not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agency not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, properties, &models.Pagination{
+	tools.SuccessWithPagination(c, properties, &tools.Pagination{
 		Page:      page,
 		PageSize:  pageSize,
 		Total:     total,
@@ -168,27 +168,27 @@ func (h *AgencyHandler) GetAgencyProperties(c *gin.Context) {
 func (h *AgencyHandler) ContactAgency(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid agency id")
+		tools.BadRequest(c, "invalid agency id")
 		return
 	}
 	
 	var req models.ContactAgencyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.ContactAgency(c.Request.Context(), uint(id), &req)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "agency not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "agency not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 5. SearchAgencies 搜索代理公司
@@ -207,17 +207,17 @@ func (h *AgencyHandler) ContactAgency(c *gin.Context) {
 func (h *AgencyHandler) SearchAgencies(c *gin.Context) {
 	var filter models.SearchAgenciesRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	agencies, total, err := h.service.SearchAgencies(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, agencies, &models.Pagination{
+	tools.SuccessWithPagination(c, agencies, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,

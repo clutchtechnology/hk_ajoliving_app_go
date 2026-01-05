@@ -109,11 +109,11 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		Price:              req.Price,
 		CategoryID:         req.CategoryID,
 		Brand:              req.Brand,
-		Condition:          models.FurnitureCondition(req.Condition),
+		Condition:          req.Condition,
 		PurchaseDate:       req.PurchaseDate,
 		DeliveryDistrictID: req.DeliveryDistrictID,
 		DeliveryTime:       req.DeliveryTime,
-		DeliveryMethod:     models.DeliveryMethod(req.DeliveryMethod),
+		DeliveryMethod:     req.DeliveryMethod,
 		Status:             models.FurnitureStatusAvailable,
 		PublisherID:        userID,
 		PublisherType:      models.PublisherType("user"),
@@ -128,26 +128,15 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		return nil, err
 	}
 
-	// 保存图片
-	if len(req.ImageURLs) > 0 {
-		for i, url := range req.ImageURLs {
-			image := &models.FurnitureImage{
-				FurnitureID: furniture.ID,
-				ImageURL:    url,
-				SortOrder:   i + 1,
-				IsCover:     i == 0, // 第一张为封面
-			}
-			// 这里需要实现 CreateImage 方法，暂时跳过
-			_ = image
-		}
-	}
-
 	return &models.Furniture{
 		ID:          furniture.ID,
 		FurnitureNo: furniture.FurnitureNo,
 		Title:       furniture.Title,
 		Price:       furniture.Price,
 		Status:      string(furniture.Status),
+		PublishedAt: furniture.PublishedAt,
+		ExpiresAt:   furniture.ExpiresAt,
+	}, nil
 		PublishedAt: furniture.PublishedAt,
 		ExpiresAt:   furniture.ExpiresAt,
 		}, nil
@@ -170,45 +159,45 @@ func (s *FurnitureService) UpdateFurniture(ctx context.Context, userID uint, id 
 	}
 
 	// 更新字段
-	if req.Title != nil {
-		furniture.Title = *req.Title
+	if req.Title != "" {
+		furniture.Title = req.Title
 	}
 	if req.Description != nil {
 		furniture.Description = req.Description
 	}
-	if req.Price != nil {
-		furniture.Price = *req.Price
+	if req.Price != 0 {
+		furniture.Price = req.Price
 	}
-	if req.CategoryID != nil {
+	if req.CategoryID != 0 {
 		// 验证分类是否存在
-		category, err := s.furnitureRepo.GetCategoryByID(ctx, *req.CategoryID)
+		category, err := s.furnitureRepo.GetCategoryByID(ctx, req.CategoryID)
 		if err != nil {
 			return nil, err
 		}
 		if category == nil {
 			return nil, ErrCategoryNotFound
 		}
-		furniture.CategoryID = *req.CategoryID
+		furniture.CategoryID = req.CategoryID
 	}
 	if req.Brand != nil {
 		furniture.Brand = req.Brand
 	}
-	if req.Condition != nil {
-		furniture.Condition = models.FurnitureCondition(*req.Condition)
+	if req.Condition != "" {
+		furniture.Condition = req.Condition
 	}
 	if req.PurchaseDate != nil {
 		furniture.PurchaseDate = req.PurchaseDate
 	}
-	if req.DeliveryDistrictID != nil {
-		furniture.DeliveryDistrictID = *req.DeliveryDistrictID
+	if req.DeliveryDistrictID != 0 {
+		furniture.DeliveryDistrictID = req.DeliveryDistrictID
 	}
 	if req.DeliveryTime != nil {
 		furniture.DeliveryTime = req.DeliveryTime
 	}
-	if req.DeliveryMethod != nil {
-		furniture.DeliveryMethod = models.DeliveryMethod(*req.DeliveryMethod)
+	if req.DeliveryMethod != "" {
+		furniture.DeliveryMethod = req.DeliveryMethod
 	}
-	if req.ExpiresAt != nil {
+	if req.ExpiresAt != nil && !req.ExpiresAt.IsZero() {
 		furniture.ExpiresAt = *req.ExpiresAt
 	}
 

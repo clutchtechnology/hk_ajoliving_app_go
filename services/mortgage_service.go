@@ -37,43 +37,49 @@ func NewMortgageService(repo databases.MortgageRepository, logger *zap.Logger) M
 
 // CalculateMortgage 计算按揭
 func (s *mortgageService) CalculateMortgage(ctx context.Context, req *map[string]interface{}) (*map[string]interface{}, error) {
+	// 从 map 中获取参数
+	propertyPrice := (*req)["property_price"].(float64)
+	downPayment := (*req)["down_payment"].(float64)
+	interestRate := (*req)["interest_rate"].(float64)
+	loanPeriod := int((*req)["loan_period"].(float64))
+	
 	// 计算贷款金额
-	loanAmount := req.PropertyPrice - req.DownPayment
+	loanAmount := propertyPrice - downPayment
 	
 	// 年利率转月利率
-	monthlyRate := req.InterestRate / 100 / 12
+	monthlyRate := interestRate / 100 / 12
 	
 	// 计算月供（使用 PMT 公式）
 	// PMT = P * [r(1+r)^n] / [(1+r)^n - 1]
 	// P = 贷款本金
 	// r = 月利率
 	// n = 还款月数
-	monthlyPayment := calculateMonthlyPayment(loanAmount, monthlyRate, req.LoanPeriod)
+	monthlyPayment := calculateMonthlyPayment(loanAmount, monthlyRate, loanPeriod)
 	
 	// 计算总还款金额
-	totalPayment := monthlyPayment * float64(req.LoanPeriod)
+	totalPayment := monthlyPayment * float64(loanPeriod)
 	
 	// 计算总利息
 	totalInterest := totalPayment - loanAmount
 	
 	// 生成还款计划（仅显示前12个月和最后1个月作为示例）
-	schedule := generatePaymentSchedule(loanAmount, monthlyRate, req.LoanPeriod, monthlyPayment)
+	schedule := generatePaymentSchedule(loanAmount, monthlyRate, loanPeriod, monthlyPayment)
 	
-	ltv := (loanAmount / req.PropertyPrice) * 100
-	loanPeriodYears := req.LoanPeriod / 12
+	ltv := (loanAmount / propertyPrice) * 100
+	loanPeriodYears := loanPeriod / 12
 
 	resp := &map[string]interface{}{
-		PropertyPrice:   req.PropertyPrice,
-		DownPayment:     req.DownPayment,
-		LoanAmount:      loanAmount,
-		InterestRate:    req.InterestRate,
-		LoanPeriod:      req.LoanPeriod,
-		LoanPeriodYears: loanPeriodYears,
-		LTV:             ltv,
-		MonthlyPayment:  monthlyPayment,
-		TotalPayment:    totalPayment,
-		TotalInterest:   totalInterest,
-		PaymentSchedule: convertPaymentScheduleSlice(schedule),
+		"property_price":    propertyPrice,
+		"down_payment":      downPayment,
+		"loan_amount":       loanAmount,
+		"interest_rate":     interestRate,
+		"loan_period":       loanPeriod,
+		"loan_period_years": loanPeriodYears,
+		"ltv":               ltv,
+		"monthly_payment":   monthlyPayment,
+		"total_payment":     totalPayment,
+		"total_interest":    totalInterest,
+		"payment_schedule":  convertPaymentScheduleSlice(schedule),
 	}
 	
 	return resp, nil
@@ -123,22 +129,30 @@ func (s *mortgageService) GetBankMortgageRate(ctx context.Context, bankID uint) 
 
 // CompareMortgageRates 比较按揭利率
 func (s *mortgageService) CompareMortgageRates(ctx context.Context, req *map[string]interface{}) (*map[string]interface{}, error) {
+	// 从 map 中获取参数
+	loanAmount := (*req)["loan_amount"].(float64)
+	loanPeriod := int((*req)["loan_period"].(float64))
+	var rateType *string
+	if rt, ok := (*req)["rate_type"].(string); ok {
+		rateType = &rt
+	}
+	
 	// 获取有效利率
-	rates, err := s.repo.GetEffectiveMortgageRates(ctx, req.RateType)
+	rates, err := s.repo.GetEffectiveMortgageRates(ctx, rateType)
 	if err != nil {
 		s.logger.Error("failed to get effective mortgage rates", zap.Error(err))
 		return nil, err
 	}
 	
 	// 计算月供比较
-	comparisons := make([]models.MortgageRateComparisonItem, 0, len(rates))
+	comparisons := make([]map[string]interface{}, 0, len(rates))
 	for _, rate := range rates {
 		monthlyRate := rate.InterestRate / 100 / 12
 		
 		// 计算月供
-		monthlyPayment := calculateMonthlyPayment(req.LoanAmount, monthlyRate, req.LoanPeriod)
-		totalPayment := monthlyPayment * float64(req.LoanPeriod)
-		totalInterest := totalPayment - req.LoanAmount
+		monthlyPayment := calculateMonthlyPayment(loanAmount, monthlyRate, loanPeriod)
+		totalPayment := monthlyPayment * float64(loanPeriod)
+		totalInterest := totalPayment - loanAmount
 		
 		// 计算总成本（包括手续费）
 		totalCost := totalPayment
@@ -146,24 +160,24 @@ func (s *mortgageService) CompareMortgageRates(ctx context.Context, req *map[str
 			totalCost += *rate.ProcessingFee
 		}
 		
-		comparison := models.MortgageRateComparisonItem{
-			Bank:           convertToBankResponse(rate.Bank),
-			RateType:       string(rate.RateType),
-			InterestRate:   rate.InterestRate,
-			MonthlyPayment: monthlyPayment,
-			TotalPayment:   totalPayment,
-			TotalInterest:  totalInterest,
-			ProcessingFee:  rate.ProcessingFee,
-			TotalCost:      totalCost,
+		comparison := map[string]interface{}{
+			"bank":            convertToBankResponse(rate.Bank),
+			"rate_type":       string(rate.RateType),
+			"interest_rate":   rate.InterestRate,
+			"monthly_payment": monthlyPayment,
+			"total_payment":   totalPayment,
+			"total_interest":  totalInterest,
+			"processing_fee":  rate.ProcessingFee,
+			"total_cost":      totalCost,
 		}
 		
 		comparisons = append(comparisons, comparison)
 	}
 	
 	resp := &map[string]interface{}{
-		LoanAmount:      req.LoanAmount,
-		LoanPeriod:      req.LoanPeriod,
-		RateComparisons: comparisons,
+		"loan_amount":       loanAmount,
+		"loan_period":       loanPeriod,
+		"rate_comparisons":  comparisons,
 	}
 	
 	return resp, nil
@@ -304,11 +318,11 @@ func generatePaymentSchedule(principal float64, monthlyRate float64, periods int
 		remainingBalance -= principalPayment
 		
 		item := &map[string]interface{}{
-			Period:            month,
-			Payment:           monthlyPayment,
-			Principal:         principalPayment,
-			Interest:          interestPayment,
-			RemainingBalance:  remainingBalance,
+			"period":             month,
+			"payment":            monthlyPayment,
+			"principal":          principalPayment,
+			"interest":           interestPayment,
+			"remaining_balance":  remainingBalance,
 		}
 		
 		schedule = append(schedule, item)
@@ -329,11 +343,11 @@ func generatePaymentSchedule(principal float64, monthlyRate float64, periods int
 		principalPayment := monthlyPayment - interestPayment
 		
 		item := &map[string]interface{}{
-			Period:            periods,
-			Payment:           monthlyPayment,
-			Principal:         principalPayment,
-			Interest:          interestPayment,
-			RemainingBalance:  0,
+			"period":             periods,
+			"payment":            monthlyPayment,
+			"principal":          principalPayment,
+			"interest":           interestPayment,
+			"remaining_balance":  0,
 		}
 		
 		schedule = append(schedule, item)
@@ -348,104 +362,14 @@ func generateApplicationNo() string {
 	return fmt.Sprintf("MTG%s%06d", now.Format("20060102"), now.Unix()%1000000)
 }
 
-// convertToMortgageRateResponse 转换为按揭利率响应
+// convertToMortgageRateResponse 转换为按揭利率响应（直接返回，预加载了关联数据）
 func convertToMortgageRateResponse(rate *models.MortgageRate) *models.MortgageRate {
-	resp := &models.MortgageRate{
-		ID:                rate.ID,
-		BankID:            rate.BankID,
-		RateType:          string(rate.RateType),
-		InterestRate:      rate.InterestRate * 100, // 转换为百分比格式
-		MinLoanAmount:     rate.MinLoanAmount,
-		MaxLoanAmount:     rate.MaxLoanAmount,
-		MinLoanPeriod:     rate.MinLoanPeriod,
-		MaxLoanPeriod:     rate.MaxLoanPeriod,
-		LTV:               rate.LTV,
-		ProcessingFee:     rate.ProcessingFee,
-		ProcessingFeeRate: rate.ProcessingFeeRate,
-		Description:       rate.Description,
-		EffectiveDate:     rate.EffectiveDate,
-		ExpiryDate:        rate.ExpiryDate,
-		IsEffective:       rate.IsEffective(),
-	}
-	
-	if rate.Bank != nil {
-		resp.Bank = &map[string]interface{}{
-			ID:         rate.Bank.ID,
-			NameZhHant: rate.Bank.NameZhHant,
-			NameZhHans: rate.Bank.NameZhHans,
-			NameEn:     rate.Bank.NameEn,
-			Code:       rate.Bank.Code,
-			Logo:       rate.Bank.Logo,
-			Website:    rate.Bank.Website,
-			Hotline:    rate.Bank.Hotline,
-		}
-	}
-	
-	return resp
+	return rate
 }
 
-// convertToMortgageApplicationResponse 转换为按揭申请响应
+// convertToMortgageApplicationResponse 转换为按揭申请响应（直接返回，预加载了关联数据）
 func convertToMortgageApplicationResponse(app *models.MortgageApplication) *models.MortgageApplication {
-	resp := &models.MortgageApplication{
-		ID:                  app.ID,
-		ApplicationNo:       app.ApplicationNo,
-		UserID:              app.UserID,
-		PropertyID:          app.PropertyID,
-		BankID:              app.BankID,
-		PropertyPrice:       app.PropertyPrice,
-		DownPayment:         app.DownPayment,
-		LoanAmount:          app.LoanAmount,
-		InterestRate:        app.InterestRate * 100, // 转换为百分比
-		LoanPeriod:          app.LoanPeriod,
-		LoanPeriodYears:     app.LoanPeriod / 12,
-		MonthlyPayment:      app.MonthlyPayment,
-		TotalPayment:        app.TotalPayment,
-		TotalInterest:       app.TotalInterest,
-		LTV:                 app.LTV * 100, // 转换为百分比
-		ApplicantName:       app.ApplicantName,
-		ApplicantPhone:      app.ApplicantPhone,
-		ApplicantEmail:      app.ApplicantEmail,
-		ApplicantIncome:     app.ApplicantIncome,
-		ApplicantOccupation: app.ApplicantOccupation,
-		Remarks:             app.Remarks,
-		Status:              string(app.Status),
-		RejectionReason:     app.RejectionReason,
-		ApprovedAt:          app.ApprovedAt,
-		RejectedAt:          app.RejectedAt,
-		CompletedAt:         app.CompletedAt,
-		SubmittedAt:         app.SubmittedAt,
-		CreatedAt:           app.CreatedAt,
-		UpdatedAt:           app.UpdatedAt,
-	}
-	
-	// 设置状态标志
-	resp.CanUpdate = app.CanUpdate()
-	resp.CanWithdraw = app.CanWithdraw()
-	
-	// 设置关联对象
-	if app.Bank != nil {
-		resp.Bank = &map[string]interface{}{
-			ID:         app.Bank.ID,
-			NameZhHant: app.Bank.NameZhHant,
-			NameZhHans: app.Bank.NameZhHans,
-			NameEn:     app.Bank.NameEn,
-			Code:       app.Bank.Code,
-			Logo:       app.Bank.Logo,
-			Website:    app.Bank.Website,
-			Hotline:    app.Bank.Hotline,
-		}
-	}
-	
-	if app.Property != nil {
-		resp.Property = &models.PropertyBasicResponse{
-			ID:      app.Property.ID,
-			Title:   app.Property.Title,
-			Address: app.Property.Address,
-			Price:   app.Property.Price,
-		}
-	}
-	
-	return resp
+	return app
 }
 
 
@@ -466,11 +390,11 @@ func convertToBankResponse(bank *models.Bank) *map[string]interface{} {
 		return nil
 	}
 	return &map[string]interface{}{
-		ID:         bank.ID,
-		NameZhHant: bank.NameZhHant,
-		NameZhHans: bank.NameZhHans,
-		NameEn:     bank.NameEn,
-		Logo:       bank.Logo,
-		Website:    bank.Website,
+		"id":           bank.ID,
+		"name_zh_hant": bank.NameZhHant,
+		"name_zh_hans": bank.NameZhHans,
+		"name_en":      bank.NameEn,
+		"logo":         bank.Logo,
+		"website":      bank.Website,
 	}
 }

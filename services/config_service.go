@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -30,321 +30,211 @@ func NewConfigService(db *gorm.DB, logger *zap.Logger) ConfigService {
 
 // GetConfig 获取系统配置
 func (s *configService) GetConfig(ctx context.Context) (*map[string]interface{}, error) {
-	config := &map[string]interface{}{
-		System: &models.SystemConfig{
-			Version:     "1.0.0",
-			Environment: "production",
-			APIBaseURL:  "https://api.ajoliving.com",
-			WebURL:      "https://ajoliving.com",
-			Timezone:    "Asia/Hong_Kong",
-			Language:    "zh-HK",
-			Currency:    "HKD",
+	config := map[string]interface{}{
+		"system": map[string]interface{}{
+			"version":     "1.0.0",
+			"environment": "production",
+			"api_base_url": "https://api.ajoliving.com",
+			"web_url":     "https://ajoliving.com",
+			"timezone":    "Asia/Hong_Kong",
+			"language":    "zh-HK",
+			"currency":    "HKD",
 		},
-		App: &models.AppConfig{
-			Name:         "AJO Living",
-			Description:  "香港地產服務平台",
-			Logo:         "https://cdn.ajoliving.com/logo.png",
-			Favicon:      "https://cdn.ajoliving.com/favicon.ico",
-			Copyright:    "© 2025 AJO Living. All rights reserved.",
-			SupportEmail: "support@ajoliving.com",
-			SupportPhone: "+852 1234 5678",
+		"app": map[string]interface{}{
+			"name":          "AJO Living",
+			"description":   "香港地產服務平台",
+			"logo":          "https://cdn.ajoliving.com/logo.png",
+			"favicon":       "https://cdn.ajoliving.com/favicon.ico",
+			"copyright":     "© 2025 AJO Living. All rights reserved.",
+			"support_email": "support@ajoliving.com",
+			"support_phone": "+852 1234 5678",
 		},
-		Features: &models.FeaturesConfig{
-			EnableRegistration:    true,
-			EnableSocialLogin:     true,
-			EnablePropertyListing: true,
-			EnableFurnitureStore:  true,
-			EnableMortgage:        true,
-			EnableValuation:       true,
-			EnableNews:            true,
-			EnableSchoolNet:       true,
-			EnablePriceIndex:      true,
+		"features": map[string]interface{}{
+			"enable_registration":     true,
+			"enable_social_login":     true,
+			"enable_property_listing": true,
+			"enable_furniture_store":  true,
+			"enable_mortgage":         true,
+			"enable_valuation":        true,
+			"enable_news":             true,
+			"enable_school_net":       true,
+			"enable_price_index":      true,
 		},
-		API: &models.APIConfig{
-			Version:     "v1",
-			RateLimit:   60,
-			Timeout:     30,
-			MaxPageSize: 100,
-			AllowedOrigins: []string{
+		"api": map[string]interface{}{
+			"version":       "v1",
+			"rate_limit":    60,
+			"timeout":       30,
+			"max_page_size": 100,
+			"allowed_origins": []string{
 				"https://ajoliving.com",
 				"https://www.ajoliving.com",
 				"http://localhost:3000",
 			},
 		},
-		UI: &models.UIConfig{
-			Theme:        "light",
-			PrimaryColor: "#2563EB",
-			MapProvider:  "google",
-			MapAPIKey:    "", // 从环境变量读取
-			Languages: []models.LanguageOption{
-				{Code: "zh-HK", Name: "繁體中文", Flag: "🇭🇰"},
-				{Code: "zh-CN", Name: "简体中文", Flag: "🇨🇳"},
-				{Code: "en", Name: "English", Flag: "🇺🇸"},
+		"ui": map[string]interface{}{
+			"theme":         "light",
+			"primary_color": "#2563EB",
+			"map_provider":  "google",
+			"languages": []map[string]string{
+				{"code": "zh-HK", "name": "繁體中文", "flag": "🇭🇰"},
+				{"code": "zh-CN", "name": "简体中文", "flag": "🇨🇳"},
+				{"code": "en", "name": "English", "flag": "🇺🇸"},
 			},
 		},
 	}
 
-	return config, nil
+	return &config, nil
 }
 
 // GetRegions 获取区域配置
 func (s *configService) GetRegions(ctx context.Context) (*[]models.District, error) {
 	// 查询所有地区并按区域分组
 	var districts []models.District
-	if err := s.db.WithContext(ctx).Order("display_order ASC").Find(&districts).Error; err != nil {
+	if err := s.db.WithContext(ctx).Order("sort_order ASC").Find(&districts).Error; err != nil {
 		s.logger.Error("查询地区失败", zap.Error(err))
 		return nil, err
 	}
 
-	// 统计每个地区的房产和屋苑数量
-	propertyCountMap := make(map[uint]int)
-	estateCountMap := make(map[uint]int)
-
-	type CountResult struct {
-		DistrictID uint
-		Count      int64
-	}
-
-	// 统计房产数量
-	var propertyCounts []CountResult
-	s.db.WithContext(ctx).Model(&models.Property{}).
-		Select("district_id, COUNT(*) as count").
-		Group("district_id").
-		Scan(&propertyCounts)
-	for _, pc := range propertyCounts {
-		propertyCountMap[pc.DistrictID] = int(pc.Count)
-	}
-
-	// 统计屋苑数量
-	var estateCounts []CountResult
-	s.db.WithContext(ctx).Model(&models.Estate{}).
-		Select("district_id, COUNT(*) as count").
-		Group("district_id").
-		Scan(&estateCounts)
-	for _, ec := range estateCounts {
-		estateCountMap[ec.DistrictID] = int(ec.Count)
-	}
-
-	// 按区域分组
-	regionMap := make(map[string]*models.RegionConfig)
-	regionOrder := []string{"HK", "KLN", "NT"}
-	regionNames := map[string]struct {
-		ZhHant string
-		ZhHans string
-		En     string
-		Type   string
-		Order  int
-	}{
-		"HK":  {"香港島", "香港岛", "Hong Kong Island", "island", 1},
-		"KLN": {"九龍", "九龙", "Kowloon", "peninsula", 2},
-		"NT":  {"新界", "新界", "New Territories", "territories", 3},
-	}
-
-	// 初始化区域
-	for code, info := range regionNames {
-		regionMap[code] = &models.RegionConfig{
-			Code:         code,
-			NameZhHant:   info.ZhHant,
-			NameZhHans:   info.ZhHans,
-			NameEn:       info.En,
-			Type:         info.Type,
-			DisplayOrder: info.Order,
-			Districts:    []*models.DistrictConfig{},
-		}
-	}
-
-	// 将地区归类到区域
-	for _, district := range districts {
-		regionCode := getRegionCode(func() string { if district.NameEn != nil { return *district.NameEn }; return "" }())
-		if region, ok := regionMap[regionCode]; ok {
-			districtConfig := &models.DistrictConfig{
-				ID:            district.ID,
-				RegionID:      0, // 可以添加 region_id 字段到 District 模型
-				// Code:          district.Code, // TODO: 添加Code字段到District model
-				NameZhHant:    district.NameZhHant,
-				NameZhHans:    func() string { if district.NameZhHans != nil { return *district.NameZhHans }; return "" }(),
-				NameEn:        func() string { if district.NameEn != nil { return *district.NameEn }; return "" }(),
-				DisplayOrder:  district.SortOrder,
-				PropertyCount: propertyCountMap[district.ID],
-				EstateCount:   estateCountMap[district.ID],
-			}
-			region.Districts = append(region.Districts, districtConfig)
-		}
-	}
-
-	// 构建响应
-	var regions []*models.RegionConfig
-	for _, code := range regionOrder {
-		if region, ok := regionMap[code]; ok {
-			regions = append(regions, region)
-		}
-	}
-
-	return &[]models.District{
-		Regions: regions,
-	}, nil
+	return &districts, nil
 }
 
 // GetPropertyTypes 获取房产类型配置
 func (s *configService) GetPropertyTypes(ctx context.Context) (*map[string]interface{}, error) {
 	// 房产类型配置
-	propertyTypes := []*models.PropertyTypeConfig{
+	propertyTypes := []map[string]interface{}{
 		{
-			Code:         "apartment",
-			NameZhHant:   "公寓",
-			NameZhHans:   "公寓",
-			NameEn:       "Apartment",
-			Icon:         "🏢",
-			DisplayOrder: 1,
-			Description:  "標準住宅公寓",
+			"code":          "apartment",
+			"name_zh_hant":  "公寓",
+			"name_zh_hans":  "公寓",
+			"name_en":       "Apartment",
+			"icon":          "🏢",
+			"display_order": 1,
+			"description":   "標準住宅公寓",
 		},
 		{
-			Code:         "villa",
-			NameZhHant:   "別墅",
-			NameZhHans:   "别墅",
-			NameEn:       "Villa",
-			Icon:         "🏡",
-			DisplayOrder: 2,
-			Description:  "獨立別墅",
+			"code":          "villa",
+			"name_zh_hant":  "別墅",
+			"name_zh_hans":  "别墅",
+			"name_en":       "Villa",
+			"icon":          "🏡",
+			"display_order": 2,
+			"description":   "獨立別墅",
 		},
 		{
-			Code:         "townhouse",
-			NameZhHant:   "聯排別墅",
-			NameZhHans:   "联排别墅",
-			NameEn:       "Townhouse",
-			Icon:         "🏘️",
-			DisplayOrder: 3,
-			Description:  "聯排式住宅",
+			"code":          "townhouse",
+			"name_zh_hant":  "聯排別墅",
+			"name_zh_hans":  "联排别墅",
+			"name_en":       "Townhouse",
+			"icon":          "🏘️",
+			"display_order": 3,
+			"description":   "聯排式住宅",
 		},
 		{
-			Code:         "penthouse",
-			NameZhHant:   "頂層豪宅",
-			NameZhHans:   "顶层豪宅",
-			NameEn:       "Penthouse",
-			Icon:         "🏰",
-			DisplayOrder: 4,
-			Description:  "頂層豪華公寓",
+			"code":          "penthouse",
+			"name_zh_hant":  "頂層豪宅",
+			"name_zh_hans":  "顶层豪宅",
+			"name_en":       "Penthouse",
+			"icon":          "🏰",
+			"display_order": 4,
+			"description":   "頂層豪華公寓",
 		},
 		{
-			Code:         "studio",
-			NameZhHant:   "開放式單位",
-			NameZhHans:   "开放式单位",
-			NameEn:       "Studio",
-			Icon:         "🚪",
-			DisplayOrder: 5,
-			Description:  "開放式設計",
+			"code":          "studio",
+			"name_zh_hant":  "開放式單位",
+			"name_zh_hans":  "开放式单位",
+			"name_en":       "Studio",
+			"icon":          "🚪",
+			"display_order": 5,
+			"description":   "開放式設計",
 		},
 		{
-			Code:         "shophouse",
-			NameZhHant:   "商住兩用",
-			NameZhHans:   "商住两用",
-			NameEn:       "Shop House",
-			Icon:         "🏬",
-			DisplayOrder: 6,
-			Description:  "商業住宅混合",
+			"code":          "shophouse",
+			"name_zh_hant":  "商住兩用",
+			"name_zh_hans":  "商住两用",
+			"name_en":       "Shop House",
+			"icon":          "🏬",
+			"display_order": 6,
+			"description":   "商業住宅混合",
 		},
 	}
 
 	// 房源类型配置
-	listingTypes := []*models.ListingTypeConfig{
+	listingTypes := []map[string]interface{}{
 		{
-			Code:       "rent",
-			NameZhHant: "租賃",
-			NameZhHans: "租赁",
-			NameEn:     "For Rent",
-			Icon:       "🔑",
-			Color:      "#10B981",
+			"code":         "rent",
+			"name_zh_hant": "租賃",
+			"name_zh_hans": "租赁",
+			"name_en":      "For Rent",
+			"icon":         "🔑",
+			"color":        "#10B981",
 		},
 		{
-			Code:       "sale",
-			NameZhHant: "出售",
-			NameZhHans: "出售",
-			NameEn:     "For Sale",
-			Icon:       "💰",
-			Color:      "#F59E0B",
+			"code":         "sale",
+			"name_zh_hant": "出售",
+			"name_zh_hans": "出售",
+			"name_en":      "For Sale",
+			"icon":         "💰",
+			"color":        "#F59E0B",
 		},
 	}
 
 	// 状态配置
-	statuses := []*models.StatusConfig{
+	statuses := []map[string]interface{}{
 		{
-			Code:        "active",
-			NameZhHant:  "活躍",
-			NameZhHans:  "活跃",
-			NameEn:      "Active",
-			Color:       "#22C55E",
-			Description: "正在出租/出售",
+			"code":         "active",
+			"name_zh_hant": "活躍",
+			"name_zh_hans": "活跃",
+			"name_en":      "Active",
+			"color":        "#22C55E",
+			"description":  "正在出租/出售",
 		},
 		{
-			Code:        "pending",
-			NameZhHant:  "待審核",
-			NameZhHans:  "待审核",
-			NameEn:      "Pending",
-			Color:       "#F59E0B",
-			Description: "等待審核中",
+			"code":         "pending",
+			"name_zh_hant": "待審核",
+			"name_zh_hans": "待审核",
+			"name_en":      "Pending",
+			"color":        "#F59E0B",
+			"description":  "等待審核中",
 		},
 		{
-			Code:        "sold",
-			NameZhHant:  "已售",
-			NameZhHans:  "已售",
-			NameEn:      "Sold",
-			Color:       "#EF4444",
-			Description: "已成功售出",
+			"code":         "sold",
+			"name_zh_hant": "已售",
+			"name_zh_hans": "已售",
+			"name_en":      "Sold",
+			"color":        "#EF4444",
+			"description":  "已成功售出",
 		},
 		{
-			Code:        "rented",
-			NameZhHant:  "已租",
-			NameZhHans:  "已租",
-			NameEn:      "Rented",
-			Color:       "#3B82F6",
-			Description: "已成功出租",
+			"code":         "rented",
+			"name_zh_hant": "已租",
+			"name_zh_hans": "已租",
+			"name_en":      "Rented",
+			"color":        "#3B82F6",
+			"description":  "已成功出租",
 		},
 		{
-			Code:        "inactive",
-			NameZhHant:  "未啟用",
-			NameZhHans:  "未启用",
-			NameEn:      "Inactive",
-			Color:       "#9CA3AF",
-			Description: "暫時下架",
+			"code":         "inactive",
+			"name_zh_hant": "未啟用",
+			"name_zh_hans": "未启用",
+			"name_en":      "Inactive",
+			"color":        "#9CA3AF",
+			"description":  "暫時下架",
 		},
 		{
-			Code:        "expired",
-			NameZhHant:  "已過期",
-			NameZhHans:  "已过期",
-			NameEn:      "Expired",
-			Color:       "#6B7280",
-			Description: "刊登已過期",
+			"code":         "expired",
+			"name_zh_hant": "已過期",
+			"name_zh_hans": "已过期",
+			"name_en":      "Expired",
+			"color":        "#6B7280",
+			"description":  "刊登已過期",
 		},
 	}
 
-	return &map[string]interface{}{
-		PropertyTypes: propertyTypes,
-		ListingTypes:  listingTypes,
-		Statuses:      statuses,
-	}, nil
-}
-
-// getRegionCode 根据地区英文名获取区域代码
-func getRegionCode(districtNameEn string) string {
-	hkIslandDistricts := map[string]bool{
-		"Central and Western": true,
-		"Wan Chai":            true,
-		"Eastern":             true,
-		"Southern":            true,
+	result := map[string]interface{}{
+		"property_types": propertyTypes,
+		"listing_types":  listingTypes,
+		"statuses":       statuses,
 	}
 
-	kowloonDistricts := map[string]bool{
-		"Yau Tsim Mong":  true,
-		"Sham Shui Po":   true,
-		"Kowloon City":   true,
-		"Wong Tai Sin":   true,
-		"Kwun Tong":      true,
-	}
-
-	if hkIslandDistricts[districtNameEn] {
-		return "HK"
-	} else if kowloonDistricts[districtNameEn] {
-		return "KLN"
-	}
-	return "NT" // New Territories
+	return &result, nil
 }

@@ -10,11 +10,11 @@ import (
 // ConfigHandler 配置处理器
 type ConfigHandler struct {
 	*BaseHandler
-	service service.ConfigService
+	service services.ConfigService
 }
 
 // NewConfigHandler 创建配置处理器实例
-func NewConfigHandler(baseHandler *BaseHandler, service service.ConfigService) *ConfigHandler {
+func NewConfigHandler(baseHandler *BaseHandler, service services.ConfigService) *ConfigHandler {
 	return &ConfigHandler{
 		BaseHandler: baseHandler,
 		service:     service,
@@ -34,11 +34,11 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 	data, err := h.service.GetConfig(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取系统配置失败", zap.Error(err))
-		models.InternalError(c, "获取配置失败")
+		tools.InternalError(c, "获取配置失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }
 
 // GetRegions 获取区域配置
@@ -54,11 +54,11 @@ func (h *ConfigHandler) GetRegions(c *gin.Context) {
 	data, err := h.service.GetRegions(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取区域配置失败", zap.Error(err))
-		models.InternalError(c, "获取区域配置失败")
+		tools.InternalError(c, "获取区域配置失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }
 
 // GetPropertyTypes 获取房产类型配置
@@ -74,9 +74,9 @@ func (h *ConfigHandler) GetPropertyTypes(c *gin.Context) {
 	data, err := h.service.GetPropertyTypes(c.Request.Context())
 	if err != nil {
 		h.Logger.Error("获取房产类型配置失败", zap.Error(err))
-		models.InternalError(c, "获取房产类型配置失败")
+		tools.InternalError(c, "获取房产类型配置失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }

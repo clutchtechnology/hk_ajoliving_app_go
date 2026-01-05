@@ -36,7 +36,7 @@ func NewBaseHandler() *BaseHandler {
 // @Success      200  {object}  models.Response{data=map[string]interface{}}
 // @Router       /api/v1/health [get]
 func (h *BaseHandler) HealthCheck(c *gin.Context) {
-	models.Success(c, gin.H{
+	tools.Success(c, gin.H{
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"service":   "AJO Living API",
@@ -53,7 +53,7 @@ func (h *BaseHandler) HealthCheck(c *gin.Context) {
 // @Success      200  {object}  models.Response{data=map[string]interface{}}
 // @Router       /api/v1/version [get]
 func (h *BaseHandler) Version(c *gin.Context) {
-	models.Success(c, gin.H{
+	tools.Success(c, gin.H{
 		"version":     "1.0.0",
 		"api_version": "v1",
 		"build_time":  "2025-12-18",

@@ -13,11 +13,11 @@ import (
 // StatisticsHandler 统计处理器
 type StatisticsHandler struct {
 	*BaseHandler
-	service service.StatisticsService
+	service services.StatisticsService
 }
 
 // NewStatisticsHandler 创建统计处理器实例
-func NewStatisticsHandler(baseHandler *BaseHandler, service service.StatisticsService) *StatisticsHandler {
+func NewStatisticsHandler(baseHandler *BaseHandler, service services.StatisticsService) *StatisticsHandler {
 	return &StatisticsHandler{
 		BaseHandler: baseHandler,
 		service:     service,
@@ -39,7 +39,7 @@ func (h *StatisticsHandler) GetOverviewStatistics(c *gin.Context) {
 	var req models.GetOverviewStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		h.Logger.Warn("参数验证失败", zap.Error(err))
-		models.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -51,11 +51,11 @@ func (h *StatisticsHandler) GetOverviewStatistics(c *gin.Context) {
 	data, err := h.service.GetOverviewStatistics(c.Request.Context(), &req)
 	if err != nil {
 		h.Logger.Error("获取总览统计失败", zap.Error(err))
-		models.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, "获取统计数据失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }
 
 // GetPropertyStatistics 获取房产统计
@@ -78,7 +78,7 @@ func (h *StatisticsHandler) GetPropertyStatistics(c *gin.Context) {
 	var req models.GetPropertyStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		h.Logger.Warn("参数验证失败", zap.Error(err))
-		models.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -90,11 +90,11 @@ func (h *StatisticsHandler) GetPropertyStatistics(c *gin.Context) {
 	data, err := h.service.GetPropertyStatistics(c.Request.Context(), &req)
 	if err != nil {
 		h.Logger.Error("获取房产统计失败", zap.Error(err))
-		models.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, "获取统计数据失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }
 
 // GetTransactionStatistics 获取成交统计
@@ -117,7 +117,7 @@ func (h *StatisticsHandler) GetTransactionStatistics(c *gin.Context) {
 	var req models.GetTransactionStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		h.Logger.Warn("参数验证失败", zap.Error(err))
-		models.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -129,11 +129,11 @@ func (h *StatisticsHandler) GetTransactionStatistics(c *gin.Context) {
 	data, err := h.service.GetTransactionStatistics(c.Request.Context(), &req)
 	if err != nil {
 		h.Logger.Error("获取成交统计失败", zap.Error(err))
-		models.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, "获取统计数据失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }
 
 // GetUserStatistics 获取用户统计
@@ -153,7 +153,7 @@ func (h *StatisticsHandler) GetUserStatistics(c *gin.Context) {
 	var req models.GetUserStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		h.Logger.Warn("参数验证失败", zap.Error(err))
-		models.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
@@ -165,9 +165,9 @@ func (h *StatisticsHandler) GetUserStatistics(c *gin.Context) {
 	data, err := h.service.GetUserStatistics(c.Request.Context(), &req)
 	if err != nil {
 		h.Logger.Error("获取用户统计失败", zap.Error(err))
-		models.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, "获取统计数据失败")
 		return
 	}
 
-	models.Success(c, data)
+	tools.Success(c, data)
 }

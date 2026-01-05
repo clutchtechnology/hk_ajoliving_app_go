@@ -8,7 +8,7 @@ import (
 )
 
 // SearchHandler Methods:
-// 0. NewSearchHandler(service *service.SearchService) -> 注入 SearchService
+// 0. NewSearchHandler(service *services.SearchService) -> 注入 SearchService
 // 1. GlobalSearch(c *gin.Context) -> 全局搜索
 // 2. SearchProperties(c *gin.Context) -> 搜索房产
 // 3. SearchEstates(c *gin.Context) -> 搜索屋苑
@@ -18,11 +18,11 @@ import (
 
 // SearchHandler 搜索处理器
 type SearchHandler struct {
-	service *service.SearchService
+	service *services.SearchService
 }
 
 // 0. NewSearchHandler -> 注入 SearchService
-func NewSearchHandler(service *service.SearchService) *SearchHandler {
+func NewSearchHandler(service *services.SearchService) *SearchHandler {
 	return &SearchHandler{service: service}
 }
 
@@ -43,17 +43,17 @@ func NewSearchHandler(service *service.SearchService) *SearchHandler {
 func (h *SearchHandler) GlobalSearch(c *gin.Context) {
 	var req models.GlobalSearchRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.GlobalSearch(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 2. SearchProperties -> 搜索房产
@@ -79,17 +79,17 @@ func (h *SearchHandler) GlobalSearch(c *gin.Context) {
 func (h *SearchHandler) SearchProperties(c *gin.Context) {
 	var req models.SearchPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchProperties(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 3. SearchEstates -> 搜索屋苑
@@ -110,17 +110,17 @@ func (h *SearchHandler) SearchProperties(c *gin.Context) {
 func (h *SearchHandler) SearchEstates(c *gin.Context) {
 	var req models.SearchEstatesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchEstates(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 4. SearchAgents -> 搜索代理人
@@ -141,17 +141,17 @@ func (h *SearchHandler) SearchEstates(c *gin.Context) {
 func (h *SearchHandler) SearchAgents(c *gin.Context) {
 	var req models.SearchAgentsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.SearchAgents(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 5. GetSearchSuggestions -> 获取搜索建议
@@ -171,17 +171,17 @@ func (h *SearchHandler) SearchAgents(c *gin.Context) {
 func (h *SearchHandler) GetSearchSuggestions(c *gin.Context) {
 	var req models.GetSearchSuggestionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.service.GetSearchSuggestions(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 6. GetSearchHistory -> 获取搜索历史
@@ -203,23 +203,23 @@ func (h *SearchHandler) GetSearchSuggestions(c *gin.Context) {
 func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
 	var req models.GetSearchHistoryRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	// 获取当前用户ID（从JWT中间件设置）
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "user not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 
 	uid := userID.(uint)
 	result, err := h.service.GetSearchHistory(c.Request.Context(), &uid, &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }

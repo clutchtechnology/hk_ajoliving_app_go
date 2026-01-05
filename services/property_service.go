@@ -98,26 +98,26 @@ func (s *PropertyService) CreateProperty(ctx context.Context, userID uint, req *
 	}
 
 	// 可选字段
-	if req.Description != "" {
-		property.Description = &req.Description
+	if req.Description != nil && *req.Description != "" {
+		property.Description = req.Description
 	}
-	if req.BuildingName != "" {
-		property.BuildingName = &req.BuildingName
+	if req.BuildingName != nil && *req.BuildingName != "" {
+		property.BuildingName = req.BuildingName
 	}
-	if req.Floor != "" {
-		property.Floor = &req.Floor
+	if req.Floor != nil && *req.Floor != "" {
+		property.Floor = req.Floor
 	}
-	if req.Orientation != "" {
-		property.Orientation = &req.Orientation
+	if req.Orientation != nil && *req.Orientation != "" {
+		property.Orientation = req.Orientation
 	}
-	if req.Bathrooms > 0 {
-		property.Bathrooms = &req.Bathrooms
+	if req.Bathrooms != nil && *req.Bathrooms > 0 {
+		property.Bathrooms = req.Bathrooms
 	}
-	if req.PrimarySchoolNet != "" {
-		property.PrimarySchoolNet = &req.PrimarySchoolNet
+	if req.PrimarySchoolNet != nil && *req.PrimarySchoolNet != "" {
+		property.PrimarySchoolNet = req.PrimarySchoolNet
 	}
-	if req.SecondarySchoolNet != "" {
-		property.SecondarySchoolNet = &req.SecondarySchoolNet
+	if req.SecondarySchoolNet != nil && *req.SecondarySchoolNet != "" {
+		property.SecondarySchoolNet = req.SecondarySchoolNet
 	}
 
 	// 设置发布时间
@@ -153,8 +153,8 @@ func (s *PropertyService) UpdateProperty(ctx context.Context, userID uint, id ui
 	if req.Title != "" {
 		property.Title = req.Title
 	}
-	if req.Description != "" {
-		property.Description = &req.Description
+	if req.Description != nil && *req.Description != "" {
+		property.Description = req.Description
 	}
 	if req.Area > 0 {
 		property.Area = req.Area
@@ -168,26 +168,26 @@ func (s *PropertyService) UpdateProperty(ctx context.Context, userID uint, id ui
 	if req.DistrictID > 0 {
 		property.DistrictID = req.DistrictID
 	}
-	if req.BuildingName != "" {
-		property.BuildingName = &req.BuildingName
+	if req.BuildingName != nil && *req.BuildingName != "" {
+		property.BuildingName = req.BuildingName
 	}
-	if req.Floor != "" {
-		property.Floor = &req.Floor
+	if req.Floor != nil && *req.Floor != "" {
+		property.Floor = req.Floor
 	}
-	if req.Orientation != "" {
-		property.Orientation = &req.Orientation
+	if req.Orientation != nil && *req.Orientation != "" {
+		property.Orientation = req.Orientation
 	}
 	if req.Bedrooms >= 0 {
 		property.Bedrooms = req.Bedrooms
 	}
-	if req.Bathrooms >= 0 {
-		property.Bathrooms = &req.Bathrooms
+	if req.Bathrooms != nil && *req.Bathrooms >= 0 {
+		property.Bathrooms = req.Bathrooms
 	}
-	if req.PrimarySchoolNet != "" {
-		property.PrimarySchoolNet = &req.PrimarySchoolNet
+	if req.PrimarySchoolNet != nil && *req.PrimarySchoolNet != "" {
+		property.PrimarySchoolNet = req.PrimarySchoolNet
 	}
-	if req.SecondarySchoolNet != "" {
-		property.SecondarySchoolNet = &req.SecondarySchoolNet
+	if req.SecondarySchoolNet != nil && *req.SecondarySchoolNet != "" {
+		property.SecondarySchoolNet = req.SecondarySchoolNet
 	}
 	if req.PropertyType != "" {
 		property.PropertyType = models.PropertyType(req.PropertyType)
@@ -266,179 +266,12 @@ func (s *PropertyService) generatePropertyNo() string {
 	return fmt.Sprintf("P%d", time.Now().UnixNano())
 }
 
-// convertToListItems 转换为列表项响应
+// convertToListItems 转换为列表项响应（直接返回，预加载了关联数据）
 func (s *PropertyService) convertToListItems(properties []*models.Property) []*models.Property {
-	items := make([]*models.Property, 0, len(properties))
-	for _, p := range properties {
-		item := &models.Property{
-			ID:           p.ID,
-			PropertyNo:   p.PropertyNo,
-			ListingType:  string(p.ListingType),
-			Title:        p.Title,
-			Area:         p.Area,
-			Price:        p.Price,
-			Address:      p.Address,
-			DistrictID:   p.DistrictID,
-			Bedrooms:     p.Bedrooms,
-			PropertyType: string(p.PropertyType),
-			Status:       string(p.Status),
-			ViewCount:    p.ViewCount,
-			FavoriteCount: p.FavoriteCount,
-			CreatedAt:    p.CreatedAt,
-		}
-
-		if p.BuildingName != nil {
-			item.BuildingName = *p.BuildingName
-		}
-		if p.Bathrooms != nil {
-			item.Bathrooms = *p.Bathrooms
-		}
-
-		// 获取封面图
-		for _, img := range p.Images {
-			if img.IsCover {
-				item.CoverImage = img.URL
-				break
-			}
-		}
-		if item.CoverImage == "" && len(p.Images) > 0 {
-			item.CoverImage = p.Images[0].URL
-		}
-
-		// 地区信息
-		if p.District != nil {
-			item.District = &models.DistrictResponse{
-				ID:         p.District.ID,
-				NameZhHant: p.District.NameZhHant,
-				Region:     string(p.District.Region),
-			}
-			if p.District.NameZhHans != nil {
-				item.District.NameZhHans = *p.District.NameZhHans
-			}
-			if p.District.NameEn != nil {
-				item.District.NameEn = *p.District.NameEn
-			}
-		}
-
-		items = append(items, item)
-	}
-	return items
+	return properties
 }
 
-// convertToResponse 转换为详情响应
+// convertToResponse 转换为详情响应（直接返回，预加载了关联数据）
 func (s *PropertyService) convertToResponse(p *models.Property) *models.Property {
-	resp := &models.Property{
-		ID:            p.ID,
-		PropertyNo:    p.PropertyNo,
-		ListingType:   string(p.ListingType),
-		Title:         p.Title,
-		Area:          p.Area,
-		Price:         p.Price,
-		Address:       p.Address,
-		DistrictID:    p.DistrictID,
-		Bedrooms:      p.Bedrooms,
-		PropertyType:  string(p.PropertyType),
-		Status:        string(p.Status),
-		PublisherID:   p.PublisherID,
-		PublisherType: string(p.PublisherType),
-		ViewCount:     p.ViewCount,
-		FavoriteCount: p.FavoriteCount,
-		PublishedAt:   p.PublishedAt,
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
-	}
-
-	// 可选字段
-	if p.EstateNo != nil {
-		resp.EstateNo = *p.EstateNo
-	}
-	if p.Description != nil {
-		resp.Description = *p.Description
-	}
-	if p.BuildingName != nil {
-		resp.BuildingName = *p.BuildingName
-	}
-	if p.Floor != nil {
-		resp.Floor = *p.Floor
-	}
-	if p.Orientation != nil {
-		resp.Orientation = *p.Orientation
-	}
-	if p.Bathrooms != nil {
-		resp.Bathrooms = *p.Bathrooms
-	}
-	if p.PrimarySchoolNet != nil {
-		resp.PrimarySchoolNet = *p.PrimarySchoolNet
-	}
-	if p.SecondarySchoolNet != nil {
-		resp.SecondarySchoolNet = *p.SecondarySchoolNet
-	}
-	if p.AgentID != nil {
-		resp.AgentID = *p.AgentID
-	}
-
-	// 地区信息
-	if p.District != nil {
-		resp.District = &models.DistrictResponse{
-			ID:         p.District.ID,
-			NameZhHant: p.District.NameZhHant,
-			Region:     string(p.District.Region),
-		}
-		if p.District.NameZhHans != nil {
-			resp.District.NameZhHans = *p.District.NameZhHans
-		}
-		if p.District.NameEn != nil {
-			resp.District.NameEn = *p.District.NameEn
-		}
-	}
-
-	// 代理信息
-	if p.Agent != nil {
-		avatar := ""
-		if p.Agent.ProfilePhoto != nil {
-			avatar = *p.Agent.ProfilePhoto
-		}
-		resp.Agent = &models.AgentBriefResponse{
-			ID:        p.Agent.ID,
-			Name:      p.Agent.AgentName,
-			Phone:     p.Agent.Phone,
-			Avatar:    avatar,
-			LicenseNo: p.Agent.LicenseNo,
-		}
-	}
-
-	// 图片
-	if len(p.Images) > 0 {
-		resp.Images = make([]models.PropertyImageResponse, 0, len(p.Images))
-		for _, img := range p.Images {
-			imgResp := models.PropertyImageResponse{
-				ID:        img.ID,
-				URL:       img.URL,
-				SortOrder: img.SortOrder,
-				IsCover:   img.IsCover,
-			}
-			if img.Caption != nil {
-				imgResp.Caption = *img.Caption
-			}
-			resp.Images = append(resp.Images, imgResp)
-		}
-	}
-
-	// 设施
-	if len(p.Facilities) > 0 {
-		resp.Facilities = make([]models.Facility, 0, len(p.Facilities))
-		for _, f := range p.Facilities {
-			facResp := models.Facility{
-				ID:         f.ID,
-				NameZhHant: f.NameZhHant,
-				Category:   string(f.Category),
-				NameZhHans: f.NameZhHans,
-				NameEn:     f.NameEn,
-				Icon:       f.Icon,
-			}
-			resp.Facilities = append(resp.Facilities, facResp)
-		}
-	}
-
-	return resp
+	return p
 }

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -14,11 +15,11 @@ import (
 // MortgageHandler 按揭处理器
 type MortgageHandler struct {
 	*BaseHandler
-	service service.MortgageService
+	service services.MortgageService
 }
 
 // NewMortgageHandler 创建按揭处理器
-func NewMortgageHandler(service service.MortgageService) *MortgageHandler {
+func NewMortgageHandler(service services.MortgageService) *MortgageHandler {
 	return &MortgageHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -38,17 +39,17 @@ func NewMortgageHandler(service service.MortgageService) *MortgageHandler {
 func (h *MortgageHandler) CalculateMortgage(c *gin.Context) {
 	var req models.CalculateMortgageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.CalculateMortgage(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // GetMortgageRates 获取按揭利率列表
@@ -63,11 +64,11 @@ func (h *MortgageHandler) CalculateMortgage(c *gin.Context) {
 func (h *MortgageHandler) GetMortgageRates(c *gin.Context) {
 	rates, err := h.service.GetMortgageRates(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, rates)
+	tools.Success(c, rates)
 }
 
 // GetBankMortgageRate 获取指定银行的按揭利率
@@ -85,21 +86,21 @@ func (h *MortgageHandler) GetMortgageRates(c *gin.Context) {
 func (h *MortgageHandler) GetBankMortgageRate(c *gin.Context) {
 	bankID, err := strconv.ParseUint(c.Param("bank_id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid bank id")
+		tools.BadRequest(c, "invalid bank id")
 		return
 	}
 	
 	rates, err := h.service.GetBankMortgageRate(c.Request.Context(), uint(bankID))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "bank not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "bank not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, rates)
+	tools.Success(c, rates)
 }
 
 // CompareMortgageRates 比较按揭利率
@@ -116,17 +117,17 @@ func (h *MortgageHandler) GetBankMortgageRate(c *gin.Context) {
 func (h *MortgageHandler) CompareMortgageRates(c *gin.Context) {
 	var req models.CompareMortgageRatesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.CompareMortgageRates(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // ApplyMortgage 申请按揭
@@ -146,27 +147,27 @@ func (h *MortgageHandler) CompareMortgageRates(c *gin.Context) {
 func (h *MortgageHandler) ApplyMortgage(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	if userID == 0 {
-		models.Unauthorized(c, "user not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 	
 	var req models.ApplyMortgageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	application, err := h.service.ApplyMortgage(c.Request.Context(), userID, &req)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "bank not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "bank not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, application)
+	tools.Success(c, application)
 }
 
 // GetMortgageApplications 获取按揭申请列表
@@ -190,23 +191,23 @@ func (h *MortgageHandler) ApplyMortgage(c *gin.Context) {
 func (h *MortgageHandler) GetMortgageApplications(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	if userID == 0 {
-		models.Unauthorized(c, "user not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 	
 	var filter models.ListMortgageApplicationsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	applications, total, err := h.service.GetMortgageApplications(c.Request.Context(), userID, &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, applications, &models.Pagination{
+	tools.SuccessWithPagination(c, applications, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -232,29 +233,29 @@ func (h *MortgageHandler) GetMortgageApplications(c *gin.Context) {
 func (h *MortgageHandler) GetMortgageApplication(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	if userID == 0 {
-		models.Unauthorized(c, "user not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 	
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid application id")
+		tools.BadRequest(c, "invalid application id")
 		return
 	}
 	
 	application, err := h.service.GetMortgageApplication(c.Request.Context(), userID, uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "application not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "application not found")
 			return
 		}
 		if errors.Is(err, errors.ErrForbidden) {
-			models.Forbidden(c, "you don't have permission to access this application")
+			tools.Forbidden(c, "you don't have permission to access this application")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, application)
+	tools.Success(c, application)
 }

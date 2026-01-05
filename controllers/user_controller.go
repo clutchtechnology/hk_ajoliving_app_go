@@ -1,7 +1,7 @@
 package controllers
 
 // UserHandler Methods:
-// 0. NewUserHandler(userService *service.UserService) -> 注入 UserService
+// 0. NewUserHandler(userService *services.UserService) -> 注入 UserService
 // 1. GetCurrentUser(c *gin.Context) -> 获取当前用户信息
 // 2. UpdateCurrentUser(c *gin.Context) -> 更新当前用户信息
 // 3. ChangePassword(c *gin.Context) -> 修改密码
@@ -9,6 +9,7 @@ package controllers
 // 5. UpdateSettings(c *gin.Context) -> 更新设置
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -28,11 +29,11 @@ type UserHandlerInterface interface {
 
 // UserHandler 用户处理器
 type UserHandler struct {
-	userService *service.UserService
+	userService *services.UserService
 }
 
 // 0. NewUserHandler 注入 UserService
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService *services.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 	}
@@ -53,21 +54,21 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	result, err := h.userService.GetCurrentUser(c.Request.Context(), userID.(uint))
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			models.NotFound(c, "User not found")
+		if err == services.ErrUserNotFound {
+			tools.NotFound(c, "User not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 2. UpdateCurrentUser 更新当前用户信息
@@ -87,27 +88,27 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	var req models.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.userService.UpdateCurrentUser(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			models.NotFound(c, "User not found")
+		if err == services.ErrUserNotFound {
+			tools.NotFound(c, "User not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 3. ChangePassword 修改密码
@@ -127,31 +128,31 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 func (h *UserHandler) ChangePassword(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	var req models.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	err := h.userService.ChangePassword(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			models.NotFound(c, "User not found")
+		if err == services.ErrUserNotFound {
+			tools.NotFound(c, "User not found")
 			return
 		}
-		if err == service.ErrOldPasswordInvalid {
-			models.BadRequest(c, "Old password is incorrect")
+		if err == services.ErrOldPasswordInvalid {
+			tools.BadRequest(c, "Old password is incorrect")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{
+	tools.Success(c, gin.H{
 		"message": "Password changed successfully",
 	})
 }
@@ -173,7 +174,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 func (h *UserHandler) GetMyListings(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
@@ -182,11 +183,11 @@ func (h *UserHandler) GetMyListings(c *gin.Context) {
 
 	result, err := h.userService.GetMyListings(c.Request.Context(), userID.(uint), page, pageSize)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, result.Properties, models.NewPagination(page, pageSize, result.Total))
+	tools.SuccessWithPagination(c, result.Properties, models.NewPagination(page, pageSize, result.Total))
 }
 
 // 5. UpdateSettings 更新设置
@@ -206,21 +207,21 @@ func (h *UserHandler) GetMyListings(c *gin.Context) {
 func (h *UserHandler) UpdateSettings(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	var req models.UpdateSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.userService.UpdateSettings(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }

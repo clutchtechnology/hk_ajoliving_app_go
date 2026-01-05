@@ -120,154 +120,22 @@ func (s *newPropertyService) GetFeaturedNewDevelopments(ctx context.Context, lim
 	return items, nil
 }
 
-// toNewDevelopmentResponse 转换为新楼盘详情响应
+// toNewDevelopmentResponse 转换为新楼盘详情响应（直接返回，预加载了关联数据）
 func (s *newPropertyService) toNewDevelopmentResponse(np *models.NewProperty) *models.NewProperty {
-	resp := &models.NewProperty{
-		ID:                 np.ID,
-		Name:               np.Name,
-		NameEn:             derefString(np.NameEn),
-		Address:            np.Address,
-		DistrictID:         np.DistrictID,
-		Status:             string(np.Status),
-		UnitsForSale:       derefInt(np.UnitsForSale),
-		UnitsSold:          derefInt(np.UnitsSold),
-		Developer:          np.Developer,
-		ManagementCompany:  derefString(np.ManagementCompany),
-		TotalUnits:         np.TotalUnits,
-		TotalBlocks:        np.TotalBlocks,
-		MaxFloors:          np.MaxFloors,
-		PrimarySchoolNet:   derefString(np.PrimarySchoolNet),
-		SecondarySchoolNet: derefString(np.SecondarySchoolNet),
-		WebsiteURL:         derefString(np.WebsiteURL),
-		SalesOfficeAddress: derefString(np.SalesOfficeAddress),
-		SalesPhone:         derefString(np.SalesPhone),
-		ExpectedCompletion: np.ExpectedCompletion,
-		OccupationDate:     np.OccupationDate,
-		Description:        derefString(np.Description),
-		ViewCount:          np.ViewCount,
-		FavoriteCount:      np.FavoriteCount,
-		IsFeatured:         np.IsFeatured,
-		SalesProgress:      np.GetSalesProgress(),
-		CreatedAt:          np.CreatedAt,
-		UpdatedAt:          np.UpdatedAt,
-	}
-
-	// 地区信息
-	if np.District != nil {
-		resp.District = &models.DistrictResponse{
-			ID:         np.District.ID,
-			NameZhHant: np.District.NameZhHant,
-			NameZhHans: derefString(np.District.NameZhHans),
-			NameEn:     derefString(np.District.NameEn),
-			Region:     string(np.District.Region),
-		}
-	}
-
-	// 图片列表
-	if len(np.Images) > 0 {
-		resp.Images = make([]models.NewDevelopmentImageResponse, len(np.Images))
-		for i, img := range np.Images {
-			resp.Images[i] = models.NewDevelopmentImageResponse{
-				ID:        img.ID,
-				URL:       img.ImageURL,
-				ImageType: string(img.ImageType),
-				Title:     derefString(img.Title),
-				SortOrder: img.SortOrder,
-			}
-		}
-	}
-
-	// 户型列表
-	if len(np.Layouts) > 0 {
-		resp.Layouts = make([]models.NewPropertyLayout, len(np.Layouts))
-		for i, layout := range np.Layouts {
-			resp.Layouts[i] = s.toLayoutResponse(&layout)
-		}
-	}
-
-	return resp
+	return np
 }
 
-// toNewDevelopmentListItemResponse 转换为新楼盘列表项响应
+// toNewDevelopmentListItemResponse 转换为新楼盘列表项响应（直接返回，预加载了关联数据）
 func (s *newPropertyService) toNewDevelopmentListItemResponse(np *models.NewProperty) *models.NewProperty {
-	resp := &models.NewProperty{
-		ID:                 np.ID,
-		Name:               np.Name,
-		NameEn:             derefString(np.NameEn),
-		Address:            np.Address,
-		DistrictID:         np.DistrictID,
-		Status:             string(np.Status),
-		Developer:          np.Developer,
-		TotalUnits:         np.TotalUnits,
-		UnitsForSale:       derefInt(np.UnitsForSale),
-		ExpectedCompletion: np.ExpectedCompletion,
-		ViewCount:          np.ViewCount,
-		FavoriteCount:      np.FavoriteCount,
-		IsFeatured:         np.IsFeatured,
-		SalesProgress:      np.GetSalesProgress(),
-		CreatedAt:          np.CreatedAt,
-	}
-
-	// 地区信息
-	if np.District != nil {
-		resp.District = &models.DistrictResponse{
-			ID:         np.District.ID,
-			NameZhHant: np.District.NameZhHant,
-			NameZhHans: derefString(np.District.NameZhHans),
-			NameEn:     derefString(np.District.NameEn),
-			Region:     string(np.District.Region),
-		}
-	}
-
-	// 封面图 - 从 Images 获取
-	if len(np.Images) > 0 {
-		resp.CoverImage = np.Images[0].ImageURL
-	}
-
-	// 价格范围 - 从 Layouts 计算
-	if len(np.Layouts) > 0 {
-		var minPrice, maxPrice float64
-		for _, layout := range np.Layouts {
-			if minPrice == 0 || layout.MinPrice < minPrice {
-				minPrice = layout.MinPrice
-			}
-			layoutMax := derefFloat64(layout.MaxPrice)
-			if layoutMax == 0 {
-				layoutMax = layout.MinPrice
-			}
-			if layoutMax > maxPrice {
-				maxPrice = layoutMax
-			}
-		}
-		resp.MinPrice = minPrice
-		resp.MaxPrice = maxPrice
-	}
-
-	return resp
+	return np
 }
 
-// toLayoutResponse 转换为户型响应
+// toLayoutResponse 转换为户型响应（直接返回模型）
 func (s *newPropertyService) toLayoutResponse(layout *models.NewPropertyLayout) models.NewPropertyLayout {
-	pricePerSqft := float64(0)
-	if layout.SaleableArea > 0 {
-		pricePerSqft = layout.MinPrice / layout.SaleableArea
-	}
-
-	return models.NewPropertyLayout{
-		ID:             layout.ID,
-		UnitType:       layout.UnitType,
-		Bedrooms:       layout.Bedrooms,
-		Bathrooms:      derefInt(layout.Bathrooms),
-		SaleableArea:   layout.SaleableArea,
-		GrossArea:      derefFloat64(layout.GrossArea),
-		MinPrice:       layout.MinPrice,
-		MaxPrice:       derefFloat64(layout.MaxPrice),
-		PricePerSqft:   pricePerSqft,
-		AvailableUnits: layout.AvailableUnits,
-		FloorplanURL:   derefString(layout.FloorplanURL),
-	}
+	return *layout
 }
 
+// 辅助函数已不再需要，但保留以防其他地方使用
 // derefString 解引用 string 指针，返回值或空字符串
 func derefString(s *string) string {
 	if s == nil {

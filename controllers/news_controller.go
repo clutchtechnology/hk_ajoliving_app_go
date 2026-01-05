@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -13,11 +14,11 @@ import (
 // NewsHandler 新闻处理器
 type NewsHandler struct {
 	*BaseHandler
-	service service.NewsService
+	service services.NewsService
 }
 
 // NewNewsHandler 创建新闻处理器
-func NewNewsHandler(service service.NewsService) *NewsHandler {
+func NewNewsHandler(service services.NewsService) *NewsHandler {
 	return &NewsHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -48,17 +49,17 @@ func NewNewsHandler(service service.NewsService) *NewsHandler {
 func (h *NewsHandler) ListNews(c *gin.Context) {
 	var filter models.ListNewsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	news, total, err := h.service.ListNews(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, news, &models.Pagination{
+	tools.SuccessWithPagination(c, news, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -78,11 +79,11 @@ func (h *NewsHandler) ListNews(c *gin.Context) {
 func (h *NewsHandler) GetNewsCategories(c *gin.Context) {
 	categories, err := h.service.GetNewsCategories(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, categories)
+	tools.Success(c, categories)
 }
 
 // GetNews 获取新闻详情
@@ -100,21 +101,21 @@ func (h *NewsHandler) GetNewsCategories(c *gin.Context) {
 func (h *NewsHandler) GetNews(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid news id")
+		tools.BadRequest(c, "invalid news id")
 		return
 	}
 	
 	news, err := h.service.GetNews(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "news not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "news not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, news)
+	tools.Success(c, news)
 }
 
 // GetHotNews 获取热门新闻
@@ -129,11 +130,11 @@ func (h *NewsHandler) GetNews(c *gin.Context) {
 func (h *NewsHandler) GetHotNews(c *gin.Context) {
 	news, err := h.service.GetHotNews(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, news)
+	tools.Success(c, news)
 }
 
 // GetFeaturedNews 获取精选新闻
@@ -148,11 +149,11 @@ func (h *NewsHandler) GetHotNews(c *gin.Context) {
 func (h *NewsHandler) GetFeaturedNews(c *gin.Context) {
 	news, err := h.service.GetFeaturedNews(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, news)
+	tools.Success(c, news)
 }
 
 // GetLatestNews 获取最新新闻
@@ -167,11 +168,11 @@ func (h *NewsHandler) GetFeaturedNews(c *gin.Context) {
 func (h *NewsHandler) GetLatestNews(c *gin.Context) {
 	news, err := h.service.GetLatestNews(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, news)
+	tools.Success(c, news)
 }
 
 // GetRelatedNews 获取相关新闻
@@ -189,19 +190,19 @@ func (h *NewsHandler) GetLatestNews(c *gin.Context) {
 func (h *NewsHandler) GetRelatedNews(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid news id")
+		tools.BadRequest(c, "invalid news id")
 		return
 	}
 	
 	news, err := h.service.GetRelatedNews(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "news not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "news not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, news)
+	tools.Success(c, news)
 }

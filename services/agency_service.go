@@ -2,12 +2,10 @@ package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"go.uber.org/zap"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
 )
 
 // AgencyService 代理公司服务接口
@@ -123,11 +121,6 @@ func (s *agencyService) SearchAgencies(ctx context.Context, filter *models.Searc
 		return nil, 0, err
 	}
 	
-	result := make([]*models.AgencyDetail, 0, len(agencies))
-	for _, agency := range agencies {
-		// 获取房源数量result = append(result, agency)
-	}
-	
-	return result, total, nil
+	return agencies, total, nil
 }
 

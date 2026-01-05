@@ -6,7 +6,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 	"go.uber.org/zap"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
@@ -75,50 +74,30 @@ func (s *priceIndexService) GetLatestPriceIndex(ctx context.Context) (*models.Pr
 	overall, err := s.repo.GetLatest(ctx, string(models.IndexTypeOverall))
 	if err != nil {
 		s.logger.Error("failed to get latest overall price index", zap.Error(err))
-		// 不返回错误，继续获取其他数据
+		return nil, err
 	}
 	
-	// 获取各地区最新指数
-	districtIndices, err := s.repo.GetAllLatestByType(ctx, string(models.IndexTypeDistrict))
-	if err != nil {
-		s.logger.Error("failed to get latest district price indices", zap.Error(err))
-		districtIndices = []*models.PriceIndex{}
-	}
-	
-	// 获取各物业类型最新指数
-	propertyTypeIndices, err := s.repo.GetAllLatestByType(ctx, string(models.IndexTypePropertyType))
-	if err != nil {
-		s.logger.Error("failed to get latest property type price indices", zap.Error(err))
-		propertyTypeIndices = []*models.PriceIndex{}
-	}
-	
-	// 构建响应
-	resp := &models.PriceIndex{
-		ByDistrict:     make([]models.PriceIndex, 0, len(districtIndices)),
-		ByPropertyType: make([]models.PriceIndex, 0, len(propertyTypeIndices)),
-		UpdatedAt:      time.Now(),
-	}
-	
-	if overall != nil {
-		overallResp := convertToPriceIndexResponse(overall)
-		resp.Overall = overallResp
-		resp.UpdatedAt = overall.UpdatedAt
-	}
-	
-	for _, index := range districtIndices {
-		resp.ByDistrict = append(resp.ByDistrict, *convertToPriceIndexResponse(index))
-	}
-	
-	for _, index := range propertyTypeIndices {
-		resp.ByPropertyType = append(resp.ByPropertyType, *convertToPriceIndexResponse(index))
-	}
-	
-	return resp, nil
+	return overall, nil
 }
 
 // 3. GetDistrictPriceIndex 获取地区楼价指数
 func (s *priceIndexService) GetDistrictPriceIndex(ctx context.Context, districtID uint, filter *map[string]interface{}) ([]*models.PriceIndex, error) {
-	indices, err := s.repo.GetDistrictPriceIndex(ctx, districtID, filter.StartPeriod, filter.EndPeriod, filter.Limit)
+	var startPeriod, endPeriod *string
+	var limit int = 12
+	
+	if filter != nil {
+		if sp, ok := (*filter)["start_period"].(string); ok {
+			startPeriod = &sp
+		}
+		if ep, ok := (*filter)["end_period"].(string); ok {
+			endPeriod = &ep
+		}
+		if l, ok := (*filter)["limit"].(int); ok {
+			limit = l
+		}
+	}
+	
+	indices, err := s.repo.GetDistrictPriceIndex(ctx, districtID, startPeriod, endPeriod, limit)
 	if err != nil {
 		s.logger.Error("failed to get district price index", zap.Error(err), zap.Uint("district_id", districtID))
 		return nil, err
@@ -134,7 +113,22 @@ func (s *priceIndexService) GetDistrictPriceIndex(ctx context.Context, districtI
 
 // 4. GetEstatePriceIndex 获取屋苑楼价指数
 func (s *priceIndexService) GetEstatePriceIndex(ctx context.Context, estateID uint, filter *map[string]interface{}) ([]*models.PriceIndex, error) {
-	indices, err := s.repo.GetEstatePriceIndex(ctx, estateID, filter.StartPeriod, filter.EndPeriod, filter.Limit)
+	var startPeriod, endPeriod *string
+	var limit int = 12
+	
+	if filter != nil {
+		if sp, ok := (*filter)["start_period"].(string); ok {
+			startPeriod = &sp
+		}
+		if ep, ok := (*filter)["end_period"].(string); ok {
+			endPeriod = &ep
+		}
+		if l, ok := (*filter)["limit"].(int); ok {
+			limit = l
+		}
+	}
+	
+	indices, err := s.repo.GetEstatePriceIndex(ctx, estateID, startPeriod, endPeriod, limit)
 	if err != nil {
 		s.logger.Error("failed to get estate price index", zap.Error(err), zap.Uint("estate_id", estateID))
 		return nil, err
@@ -160,101 +154,117 @@ func (s *priceIndexService) GetPriceTrends(ctx context.Context, filter *models.G
 		return nil, tools.ErrNotFound
 	}
 	
+	// 构建数据点
+	dataPoints := make([]map[string]interface{}, 0, len(indices))
+	for _, index := range indices {
+		dataPoints = append(dataPoints, map[string]interface{}{
+			"period":            index.Period,
+			"index_value":       index.IndexValue,
+			"change_value":      index.ChangeValue,
+			"change_percent":    index.ChangePercent,
+			"avg_price":         index.AvgPrice,
+			"avg_price_per_sqft": index.AvgPricePerSqft,
+			"transaction_count": index.TransactionCount,
+		})
+	}
+	
 	// 构建响应
-	resp := &map[string]interface{}{
-		IndexType:   filter.IndexType,
-		DistrictID:  filter.DistrictID,
-		EstateID:    filter.EstateID,
-		PropertyType: filter.PropertyType,
-		StartPeriod: filter.StartPeriod,
-		EndPeriod:   filter.EndPeriod,
-		DataPoints:  make([]models.PriceTrendDataPoint, 0, len(indices)),
+	resp := map[string]interface{}{
+		"index_type":   filter.IndexType,
+		"district_id":  filter.DistrictID,
+		"estate_id":    filter.EstateID,
+		"property_type": filter.PropertyType,
+		"start_period": filter.StartPeriod,
+		"end_period":   filter.EndPeriod,
+		"data_points":  dataPoints,
 	}
 	
 	// 设置名称
 	if len(indices) > 0 {
 		if indices[0].District != nil {
-			districtName := indices[0].District.NameZhHant
-			resp.DistrictName = &districtName
+			resp["district_name"] = indices[0].District.NameZhHant
 		}
 		if indices[0].Estate != nil {
-			estateName := indices[0].Estate.Name
-			resp.EstateName = &estateName
+			resp["estate_name"] = indices[0].Estate.Name
 		}
-	}
-	
-	// 转换数据点
-	for _, index := range indices {
-		resp.DataPoints = append(resp.DataPoints, models.PriceTrendDataPoint{
-			Period:           index.Period,
-			IndexValue:       index.IndexValue,
-			ChangeValue:      index.ChangeValue,
-			ChangePercent:    index.ChangePercent,
-			AvgPrice:         index.AvgPrice,
-			AvgPricePerSqft:  index.AvgPricePerSqft,
-			TransactionCount: index.TransactionCount,
-		})
 	}
 	
 	// 计算统计信息
-	resp.Statistics = calculateTrendStatistics(indices)
+	resp["statistics"] = calculateTrendStatistics(indices)
 	
-	return resp, nil
+	return &resp, nil
 }
 
 // 6. ComparePriceIndex 对比楼价指数
 func (s *priceIndexService) ComparePriceIndex(ctx context.Context, filter *map[string]interface{}) (*map[string]interface{}, error) {
-	resp := &map[string]interface{}{
-		CompareType: filter.CompareType,
-		StartPeriod: filter.StartPeriod,
-		EndPeriod:   filter.EndPeriod,
-		Series:      []map[string]interface{}{},
+	compareType, _ := (*filter)["compare_type"].(string)
+	startPeriod, _ := (*filter)["start_period"].(string)
+	endPeriod, _ := (*filter)["end_period"].(string)
+	
+	resp := map[string]interface{}{
+		"compare_type": compareType,
+		"start_period": startPeriod,
+		"end_period":   endPeriod,
+		"series":       []map[string]interface{}{},
 	}
 	
-	switch filter.CompareType {
+	switch compareType {
 	case "districts":
-		indices, err := s.repo.GetForComparison(ctx, string(models.IndexTypeDistrict), filter.DistrictIDs, filter.StartPeriod, filter.EndPeriod)
+		districtIDs, _ := (*filter)["district_ids"].([]uint)
+		indices, err := s.repo.GetForComparison(ctx, string(models.IndexTypeDistrict), districtIDs, startPeriod, endPeriod)
 		if err != nil {
 			s.logger.Error("failed to get district comparison data", zap.Error(err))
 			return nil, err
 		}
-		resp.Series = groupIndicesByID(indices, "district")
+		resp["series"] = groupIndicesByID(indices, "district")
 		
 	case "estates":
-		indices, err := s.repo.GetForComparison(ctx, string(models.IndexTypeEstate), filter.EstateIDs, filter.StartPeriod, filter.EndPeriod)
+		estateIDs, _ := (*filter)["estate_ids"].([]uint)
+		indices, err := s.repo.GetForComparison(ctx, string(models.IndexTypeEstate), estateIDs, startPeriod, endPeriod)
 		if err != nil {
 			s.logger.Error("failed to get estate comparison data", zap.Error(err))
 			return nil, err
 		}
-		resp.Series = groupIndicesByID(indices, "estate")
+		resp["series"] = groupIndicesByID(indices, "estate")
 		
 	case "property_types":
 		// 对于物业类型，需要特殊处理
 		// TODO: 实现物业类型对比逻辑
-		resp.Series = []map[string]interface{}{}
+		resp["series"] = []map[string]interface{}{}
 		
 	default:
-		return nil, fmt.Errorf("invalid compare type: %s", filter.CompareType)
+		return nil, fmt.Errorf("invalid compare type: %s", compareType)
 	}
 	
-	return resp, nil
+	return &resp, nil
 }
 
 // 7. ExportPriceData 导出价格数据
 func (s *priceIndexService) ExportPriceData(ctx context.Context, filter *map[string]interface{}) (*[]byte, error) {
+	indexType, _ := (*filter)["index_type"].(*models.IndexType)
+	districtID, _ := (*filter)["district_id"].(*uint)
+	estateID, _ := (*filter)["estate_id"].(*uint)
+	propertyType, _ := (*filter)["property_type"].(*string)
+	startPeriod, _ := (*filter)["start_period"].(string)
+	endPeriod, _ := (*filter)["end_period"].(string)
+	format, _ := (*filter)["format"].(string)
+	
+	startPeriodPtr := &startPeriod
+	endPeriodPtr := &endPeriod
+	
 	// 构建查询请求
 	listFilter := &models.GetPriceIndexRequest{
-		IndexType:    filter.IndexType,
-		DistrictID:   filter.DistrictID,
-		EstateID:     filter.EstateID,
-		PropertyType: filter.PropertyType,
-		StartPeriod:  &filter.StartPeriod,
-		EndPeriod:    &filter.EndPeriod,
+		IndexType:    indexType,
+		DistrictID:   districtID,
+		EstateID:     estateID,
+		PropertyType: propertyType,
+		StartPeriod:  startPeriodPtr,
+		EndPeriod:    endPeriodPtr,
 		Page:         1,
 		PageSize:     10000, // 导出所有数据
 	}
 	
-	indices, total, err := s.repo.List(ctx, listFilter)
+	_, total, err := s.repo.List(ctx, listFilter)
 	if err != nil {
 		s.logger.Error("failed to get data for export", zap.Error(err))
 		return nil, err
@@ -262,24 +272,27 @@ func (s *priceIndexService) ExportPriceData(ctx context.Context, filter *map[str
 	
 	// TODO: 实现实际的文件生成和上传逻辑
 	// 这里只是返回模拟数据
-	fileName := fmt.Sprintf("price_index_%s_%s.%s", filter.StartPeriod, filter.EndPeriod, filter.Format)
-	
-	resp := &[]byte{
-		FileName:    fileName,
-		DownloadURL: fmt.Sprintf("/downloads/%s", fileName),
-		Format:      filter.Format,
-		RecordCount: len(indices),
-		ExportedAt:  time.Now(),
-	}
+	fileName := fmt.Sprintf("price_index_%s_%s.%s", startPeriod, endPeriod, format)
 	
 	s.logger.Info("price data exported", zap.String("file_name", fileName), zap.Int64("record_count", total))
 	
-	return resp, nil
+	// 返回空字节数组，实际应该返回文件内容
+	result := make([]byte, 0)
+	return &result, nil
 }
 
 // 8. GetPriceIndexHistory 获取历史楼价指数
 func (s *priceIndexService) GetPriceIndexHistory(ctx context.Context, filter *map[string]interface{}) (*[]models.PriceIndex, error) {
-	indices, err := s.repo.GetHistory(ctx, filter.IndexType, filter.DistrictID, filter.EstateID, filter.PropertyType, filter.Years)
+	indexType, _ := (*filter)["index_type"].(string)
+	districtID, _ := (*filter)["district_id"].(*uint)
+	estateID, _ := (*filter)["estate_id"].(*uint)
+	propertyType, _ := (*filter)["property_type"].(*string)
+	years, _ := (*filter)["years"].(int)
+	if years == 0 {
+		years = 1
+	}
+	
+	indices, err := s.repo.GetHistory(ctx, indexType, districtID, estateID, propertyType, years)
 	if err != nil {
 		s.logger.Error("failed to get price index history", zap.Error(err))
 		return nil, err
@@ -289,45 +302,12 @@ func (s *priceIndexService) GetPriceIndexHistory(ctx context.Context, filter *ma
 		return nil, tools.ErrNotFound
 	}
 	
-	resp := &[]models.PriceIndex{
-		IndexType:    filter.IndexType,
-		DistrictID:   filter.DistrictID,
-		EstateID:     filter.EstateID,
-		PropertyType: filter.PropertyType,
-		Years:        filter.Years,
-		DataPoints:   make([]models.PriceTrendDataPoint, 0, len(indices)),
-		YearlyStats:  []map[string]interface{}{},
-	}
-	
-	// 设置名称
-	if len(indices) > 0 {
-		if indices[0].District != nil {
-			districtName := indices[0].District.NameZhHant
-			resp.DistrictName = &districtName
-		}
-		if indices[0].Estate != nil {
-			estateName := indices[0].Estate.Name
-			resp.EstateName = &estateName
-		}
-	}
-	
-	// 转换数据点
+	result := make([]models.PriceIndex, 0, len(indices))
 	for _, index := range indices {
-		resp.DataPoints = append(resp.DataPoints, models.PriceTrendDataPoint{
-			Period:           index.Period,
-			IndexValue:       index.IndexValue,
-			ChangeValue:      index.ChangeValue,
-			ChangePercent:    index.ChangePercent,
-			AvgPrice:         index.AvgPrice,
-			AvgPricePerSqft:  index.AvgPricePerSqft,
-			TransactionCount: index.TransactionCount,
-		})
+		result = append(result, *convertToPriceIndexResponse(index))
 	}
 	
-	// 计算年度统计
-	resp.YearlyStats = calculateYearlyStatistics(indices)
-	
-	return resp, nil
+	return &result, nil
 }
 
 // 9. CreatePriceIndex 创建楼价指数
@@ -339,7 +319,7 @@ func (s *priceIndexService) CreatePriceIndex(ctx context.Context, req *models.Pr
 	}
 	
 	index := &models.PriceIndex{
-		IndexType:        models.IndexType(req.IndexType),
+		IndexType:        req.IndexType,
 		DistrictID:       req.DistrictID,
 		EstateID:         req.EstateID,
 		PropertyType:     req.PropertyType,
@@ -361,10 +341,7 @@ func (s *priceIndexService) CreatePriceIndex(ctx context.Context, req *models.Pr
 		return nil, err
 	}
 	
-	return &models.PriceIndex{
-		ID:      index.ID,
-		Period:  index.Period,
-		}, nil
+	return convertToPriceIndexResponse(index), nil
 }
 
 // 10. UpdatePriceIndex 更新楼价指数
@@ -380,14 +357,14 @@ func (s *priceIndexService) UpdatePriceIndex(ctx context.Context, id uint, req *
 	}
 	
 	// 更新字段
-	if req.IndexValue != nil {
-		index.IndexValue = *req.IndexValue
+	if req.IndexValue != 0 {
+		index.IndexValue = req.IndexValue
 	}
-	if req.ChangeValue != nil {
-		index.ChangeValue = *req.ChangeValue
+	if req.ChangeValue != 0 {
+		index.ChangeValue = req.ChangeValue
 	}
-	if req.ChangePercent != nil {
-		index.ChangePercent = *req.ChangePercent
+	if req.ChangePercent != 0 {
+		index.ChangePercent = req.ChangePercent
 	}
 	if req.AvgPrice != nil {
 		index.AvgPrice = req.AvgPrice
@@ -395,11 +372,11 @@ func (s *priceIndexService) UpdatePriceIndex(ctx context.Context, id uint, req *
 	if req.AvgPricePerSqft != nil {
 		index.AvgPricePerSqft = req.AvgPricePerSqft
 	}
-	if req.TransactionCount != nil {
-		index.TransactionCount = *req.TransactionCount
+	if req.TransactionCount != 0 {
+		index.TransactionCount = req.TransactionCount
 	}
-	if req.DataSource != nil {
-		index.DataSource = *req.DataSource
+	if req.DataSource != "" {
+		index.DataSource = req.DataSource
 	}
 	if req.Notes != nil {
 		index.Notes = req.Notes
@@ -410,9 +387,7 @@ func (s *priceIndexService) UpdatePriceIndex(ctx context.Context, id uint, req *
 		return nil, err
 	}
 	
-	return &models.PriceIndex{
-		ID:      index.ID,
-		}, nil
+	return convertToPriceIndexResponse(index), nil
 }
 
 // ========== 辅助函数 ==========
@@ -421,7 +396,7 @@ func (s *priceIndexService) UpdatePriceIndex(ctx context.Context, id uint, req *
 func convertToPriceIndexResponse(index *models.PriceIndex) *models.PriceIndex {
 	resp := &models.PriceIndex{
 		ID:               index.ID,
-		IndexType:        string(index.IndexType),
+		IndexType:        index.IndexType,
 		DistrictID:       index.DistrictID,
 		EstateID:         index.EstateID,
 		PropertyType:     index.PropertyType,
@@ -439,28 +414,8 @@ func convertToPriceIndexResponse(index *models.PriceIndex) *models.PriceIndex {
 		Notes:            index.Notes,
 		CreatedAt:        index.CreatedAt,
 		UpdatedAt:        index.UpdatedAt,
-	}
-	
-	if index.District != nil {
-		resp.District = &models.DistrictResponse{
-			ID:         index.District.ID,
-			NameZhHant: index.District.NameZhHant,
-			Region:     string(index.District.Region),
-		}
-		if index.District.NameZhHans != nil {
-			resp.District.NameZhHans = *index.District.NameZhHans
-		}
-		if index.District.NameEn != nil {
-			resp.District.NameEn = *index.District.NameEn
-		}
-	}
-	
-	if index.Estate != nil {
-		resp.Estate = &models.EstateBasicInfo{
-			ID:     index.Estate.ID,
-			Name:   index.Estate.Name,
-			NameEn: index.Estate.NameEn,
-		}
+		District:         index.District,
+		Estate:           index.Estate,
 	}
 	
 	return resp
@@ -470,7 +425,7 @@ func convertToPriceIndexResponse(index *models.PriceIndex) *models.PriceIndex {
 func convertToPriceIndexListItemResponse(index *models.PriceIndex) *models.PriceIndex {
 	return &models.PriceIndex{
 		ID:               index.ID,
-		IndexType:        string(index.IndexType),
+		IndexType:        index.IndexType,
 		IndexValue:       index.IndexValue,
 		ChangeValue:      index.ChangeValue,
 		ChangePercent:    index.ChangePercent,
@@ -484,41 +439,47 @@ func convertToPriceIndexListItemResponse(index *models.PriceIndex) *models.Price
 }
 
 // calculateTrendStatistics 计算走势统计信息
-func calculateTrendStatistics(indices []*models.PriceIndex) *map[string]interface{} {
+func calculateTrendStatistics(indices []*models.PriceIndex) map[string]interface{} {
 	if len(indices) == 0 {
 		return nil
 	}
 	
-	stats := &map[string]interface{}{
-		HighestValue: indices[0].IndexValue,
-		LowestValue:  indices[0].IndexValue,
+	stats := map[string]interface{}{
+		"highest_value": indices[0].IndexValue,
+		"lowest_value":  indices[0].IndexValue,
 	}
 	
 	var sum float64
 	for _, index := range indices {
 		sum += index.IndexValue
-		if index.IndexValue > stats.HighestValue {
-			stats.HighestValue = index.IndexValue
+		if index.IndexValue > stats["highest_value"].(float64) {
+			stats["highest_value"] = index.IndexValue
 		}
-		if index.IndexValue < stats.LowestValue {
-			stats.LowestValue = index.IndexValue
+		if index.IndexValue < stats["lowest_value"].(float64) {
+			stats["lowest_value"] = index.IndexValue
 		}
 	}
 	
-	stats.AverageValue = sum / float64(len(indices))
-	stats.TotalChange = indices[len(indices)-1].IndexValue - indices[0].IndexValue
+	avgValue := sum / float64(len(indices))
+	stats["average_value"] = avgValue
+	
+	totalChange := indices[len(indices)-1].IndexValue - indices[0].IndexValue
+	stats["total_change"] = totalChange
+	
 	if indices[0].IndexValue != 0 {
-		stats.TotalChangePercent = (stats.TotalChange / indices[0].IndexValue) * 100
+		stats["total_change_percent"] = (totalChange / indices[0].IndexValue) * 100
+	} else {
+		stats["total_change_percent"] = 0.0
 	}
 	
 	// 计算波动率（标准差）
 	var variance float64
 	for _, index := range indices {
-		diff := index.IndexValue - stats.AverageValue
+		diff := index.IndexValue - avgValue
 		variance += diff * diff
 	}
 	variance = variance / float64(len(indices))
-	stats.VolatilityRate = math.Sqrt(variance)
+	stats["volatility_rate"] = math.Sqrt(variance)
 	
 	return stats
 }
@@ -563,15 +524,15 @@ func calculateYearlyStatistics(indices []*models.PriceIndex) []map[string]interf
 		}
 		
 		stats = append(stats, map[string]interface{}{
-			Year:              year,
-			AverageValue:      avg,
-			YearStartValue:    yearStart,
-			YearEndValue:      yearEnd,
-			YearChange:        yearChange,
-			YearChangePercent: yearChangePercent,
-			HighestValue:      highest,
-			LowestValue:       lowest,
-			TotalTransactions: totalTransactions,
+			"year":                year,
+			"average_value":       avg,
+			"year_start_value":    yearStart,
+			"year_end_value":      yearEnd,
+			"year_change":         yearChange,
+			"year_change_percent": yearChangePercent,
+			"highest_value":       highest,
+			"lowest_value":        lowest,
+			"total_transactions":  totalTransactions,
 		})
 	}
 	
@@ -614,24 +575,24 @@ func groupIndicesByID(indices []*models.PriceIndex, groupType string) []map[stri
 	
 	series := []map[string]interface{}{}
 	for id, groupIndices := range groupMap {
-		dataPoints := make([]models.PriceTrendDataPoint, 0, len(groupIndices))
+		dataPoints := make([]map[string]interface{}, 0, len(groupIndices))
 		for _, index := range groupIndices {
-			dataPoints = append(dataPoints, models.PriceTrendDataPoint{
-				Period:           index.Period,
-				IndexValue:       index.IndexValue,
-				ChangeValue:      index.ChangeValue,
-				ChangePercent:    index.ChangePercent,
-				AvgPrice:         index.AvgPrice,
-				AvgPricePerSqft:  index.AvgPricePerSqft,
-				TransactionCount: index.TransactionCount,
+			dataPoints = append(dataPoints, map[string]interface{}{
+				"period":             index.Period,
+				"index_value":        index.IndexValue,
+				"change_value":       index.ChangeValue,
+				"change_percent":     index.ChangePercent,
+				"avg_price":          index.AvgPrice,
+				"avg_price_per_sqft": index.AvgPricePerSqft,
+				"transaction_count":  index.TransactionCount,
 			})
 		}
 		
 		series = append(series, map[string]interface{}{
-			ID:         id,
-			Name:       nameMap[id],
-			Type:       groupType,
-			DataPoints: dataPoints,
+			"id":          id,
+			"name":        nameMap[id],
+			"type":        groupType,
+			"data_points": dataPoints,
 		})
 	}
 	

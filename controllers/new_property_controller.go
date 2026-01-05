@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
@@ -19,12 +20,12 @@ import (
 // 3. GetDevelopmentUnits(c *gin.Context) -> 获取楼盘户型列表 GET /api/v1/new-properties/:id/units
 // 4. GetFeaturedNewDevelopments(c *gin.Context) -> 获取精选新楼盘 GET /api/v1/new-properties/featured
 type NewPropertyHandler struct {
-	service service.NewPropertyService
+	service services.NewPropertyService
 	logger  *zap.Logger
 }
 
 // NewNewPropertyHandler 创建新楼盘处理器实例
-func NewNewPropertyHandler(svc service.NewPropertyService, logger *zap.Logger) *NewPropertyHandler {
+func NewNewPropertyHandler(svc services.NewPropertyService, logger *zap.Logger) *NewPropertyHandler {
 	return &NewPropertyHandler{
 		service: svc,
 		logger:  logger,
@@ -54,7 +55,7 @@ func NewNewPropertyHandler(svc service.NewPropertyService, logger *zap.Logger) *
 func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
 	var req models.ListNewDevelopmentsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -69,12 +70,12 @@ func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
 	items, total, err := h.service.ListNewDevelopments(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.Error("Failed to list new developments", zap.Error(err))
-		models.InternalError(c, "获取新楼盘列表失败")
+		tools.InternalError(c, "获取新楼盘列表失败")
 		return
 	}
 
 	pagination := models.NewPagination(req.Page, req.PageSize, total)
-	models.SuccessWithPagination(c, items, pagination)
+	tools.SuccessWithPagination(c, items, pagination)
 }
 
 // GetNewDevelopment 获取新楼盘详情
@@ -91,22 +92,22 @@ func (h *NewPropertyHandler) GetNewDevelopment(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		models.BadRequest(c, "无效的新楼盘ID")
+		tools.BadRequest(c, "无效的新楼盘ID")
 		return
 	}
 
 	newDevelopment, err := h.service.GetNewDevelopment(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			models.NotFound(c, "新楼盘不存在")
+			tools.NotFound(c, "新楼盘不存在")
 			return
 		}
 		h.logger.Error("Failed to get new development", zap.Uint64("id", id), zap.Error(err))
-		models.InternalError(c, "获取新楼盘详情失败")
+		tools.InternalError(c, "获取新楼盘详情失败")
 		return
 	}
 
-	models.Success(c, newDevelopment)
+	tools.Success(c, newDevelopment)
 }
 
 // GetDevelopmentUnits 获取楼盘户型列表
@@ -123,22 +124,22 @@ func (h *NewPropertyHandler) GetDevelopmentUnits(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		models.BadRequest(c, "无效的新楼盘ID")
+		tools.BadRequest(c, "无效的新楼盘ID")
 		return
 	}
 
 	units, err := h.service.GetDevelopmentUnits(c.Request.Context(), uint(id))
 	if err != nil {
 		if err == pkgErrors.ErrNotFound {
-			models.NotFound(c, "新楼盘不存在")
+			tools.NotFound(c, "新楼盘不存在")
 			return
 		}
 		h.logger.Error("Failed to get development units", zap.Uint64("id", id), zap.Error(err))
-		models.InternalError(c, "获取楼盘户型失败")
+		tools.InternalError(c, "获取楼盘户型失败")
 		return
 	}
 
-	models.Success(c, units)
+	tools.Success(c, units)
 }
 
 // GetFeaturedNewDevelopments 获取精选新楼盘
@@ -163,9 +164,9 @@ func (h *NewPropertyHandler) GetFeaturedNewDevelopments(c *gin.Context) {
 	items, err := h.service.GetFeaturedNewDevelopments(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Error("Failed to get featured new developments", zap.Error(err))
-		models.InternalError(c, "获取精选新楼盘失败")
+		tools.InternalError(c, "获取精选新楼盘失败")
 		return
 	}
 
-	models.Success(c, items)
+	tools.Success(c, items)
 }

@@ -92,17 +92,7 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 	}
 
 	return &models.RegisterResponse{
-		User: &models.UserInfo{
-			ID:        user.ID,
-			Username:  user.Username,
-			Email:     user.Email,
-			FullName:  user.FullName,
-			Phone:     user.Phone,
-			Avatar:    user.Avatar,
-			UserType:  user.UserType,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt,
-		},
+		User: user,
 	}, nil
 }
 
@@ -149,19 +139,8 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 	return &models.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
 		ExpiresIn:    s.jwtManager.GetAccessExpireSeconds(),
-		User: &models.UserInfo{
-			ID:        user.ID,
-			Username:  user.Username,
-			Email:     user.Email,
-			FullName:  user.FullName,
-			Phone:     user.Phone,
-			Avatar:    user.Avatar,
-			UserType:  user.UserType,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt,
-		},
+		User:         user,
 	}, nil
 }
 
@@ -198,19 +177,8 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 	return &models.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: req.RefreshToken,
-		TokenType:    "Bearer",
 		ExpiresIn:    s.jwtManager.GetAccessExpireSeconds(),
-		User: &models.UserInfo{
-			ID:        user.ID,
-			Username:  user.Username,
-			Email:     user.Email,
-			FullName:  user.FullName,
-			Phone:     user.Phone,
-			Avatar:    user.Avatar,
-			UserType:  user.UserType,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt,
-		},
+		User:         user,
 	}, nil
 }
 
@@ -224,7 +192,8 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *models.ForgotPass
 	if user == nil {
 		// 为了安全，即使用户不存在也返回成功消息
 		return &models.ForgotPasswordResponse{
-			Email:   req.Email,
+			Success: true,
+			Message: "If the email exists, a password reset link will be sent",
 		}, nil
 	}
 
@@ -235,7 +204,8 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *models.ForgotPass
 	// 3. 发送包含重置链接的邮件
 
 	return &models.ForgotPasswordResponse{
-		Email:   req.Email,
+		Success: true,
+		Message: "Password reset link has been sent to your email",
 	}, nil
 }
 
@@ -263,22 +233,22 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *models.ResetPasswo
 	}
 
 	// 加密新密码
-	hashedPassword, err := tools.HashPassword(req.NewPassword)
+	hashedPassword, err := tools.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
-
+	
 	// 更新密码
 	user.Password = hashedPassword
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, err
 	}
-
+	
 	return &models.ResetPasswordResponse{
-		}, nil
-}
-
-// 7. VerifyCode 验证码验证
+		Success: true,
+		Message: "Password has been reset successfully",
+	}, nil
+}// 7. VerifyCode 验证码验证
 func (s *AuthService) VerifyCode(ctx context.Context, req *models.VerifyCodeRequest) (*models.VerifyCodeResponse, error) {
 	// TODO: 从 Redis 中验证验证码
 	// 实际项目中应该:
@@ -292,11 +262,12 @@ func (s *AuthService) VerifyCode(ctx context.Context, req *models.VerifyCodeRequ
 
 	if !isValid {
 		return &models.VerifyCodeResponse{
-			Valid:   false,
-			}, nil
+			Success: false,
+			Message: "Invalid verification code",
+		}, nil
 	}
 
-	// 生成临时令牌用于后续操作
+	// 生成临时令牌用于后续操作（可选）
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
@@ -304,14 +275,9 @@ func (s *AuthService) VerifyCode(ctx context.Context, req *models.VerifyCodeRequ
 	if user == nil {
 		return nil, ErrUserNotFound
 	}
-
-	token, err := s.jwtManager.GenerateAccessToken(user.ID, user.Username, user.Email, user.UserType)
-	if err != nil {
-		return nil, err
-	}
-
+	
 	return &models.VerifyCodeResponse{
-		Valid:   true,
-		Token:   token,
+		Success: true,
+		Message: "Verification successful",
 	}, nil
 }

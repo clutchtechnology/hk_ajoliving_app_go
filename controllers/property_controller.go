@@ -1,7 +1,7 @@
 package controllers
 
 // PropertyHandler Methods:
-// 0. NewPropertyHandler(propertyService *service.PropertyService) -> 注入 PropertyService
+// 0. NewPropertyHandler(propertyService *services.PropertyService) -> 注入 PropertyService
 // 1. ListProperties(c *gin.Context) -> 房产列表
 // 2. GetProperty(c *gin.Context) -> 房产详情
 // 3. CreateProperty(c *gin.Context) -> 创建房产
@@ -12,6 +12,7 @@ package controllers
 // 8. GetHotProperties(c *gin.Context) -> 热门房源
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -34,11 +35,11 @@ type PropertyHandlerInterface interface {
 
 // PropertyHandler 房产处理器
 type PropertyHandler struct {
-	propertyService *service.PropertyService
+	propertyService *services.PropertyService
 }
 
 // 0. NewPropertyHandler 注入 PropertyService
-func NewPropertyHandler(propertyService *service.PropertyService) *PropertyHandler {
+func NewPropertyHandler(propertyService *services.PropertyService) *PropertyHandler {
 	return &PropertyHandler{
 		propertyService: propertyService,
 	}
@@ -73,7 +74,7 @@ func NewPropertyHandler(propertyService *service.PropertyService) *PropertyHandl
 func (h *PropertyHandler) ListProperties(c *gin.Context) {
 	var req models.ListPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -93,11 +94,11 @@ func (h *PropertyHandler) ListProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 2. GetProperty 房产详情
@@ -116,21 +117,21 @@ func (h *PropertyHandler) ListProperties(c *gin.Context) {
 func (h *PropertyHandler) GetProperty(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid property ID")
+		tools.BadRequest(c, "Invalid property ID")
 		return
 	}
 
 	property, err := h.propertyService.GetProperty(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == service.ErrPropertyNotFound {
-			models.NotFound(c, "Property not found")
+		if err == services.ErrPropertyNotFound {
+			tools.NotFound(c, "Property not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, property)
+	tools.Success(c, property)
 }
 
 // 3. CreateProperty 创建房产
@@ -150,23 +151,23 @@ func (h *PropertyHandler) GetProperty(c *gin.Context) {
 func (h *PropertyHandler) CreateProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	var req models.CreatePropertyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.propertyService.CreateProperty(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Created(c, result)
+	tools.Created(c, result)
 }
 
 // 4. UpdateProperty 更新房产
@@ -189,37 +190,37 @@ func (h *PropertyHandler) CreateProperty(c *gin.Context) {
 func (h *PropertyHandler) UpdateProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid property ID")
+		tools.BadRequest(c, "Invalid property ID")
 		return
 	}
 
 	var req models.UpdatePropertyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	result, err := h.propertyService.UpdateProperty(c.Request.Context(), userID.(uint), uint(id), &req)
 	if err != nil {
-		if err == service.ErrPropertyNotFound {
-			models.NotFound(c, "Property not found")
+		if err == services.ErrPropertyNotFound {
+			tools.NotFound(c, "Property not found")
 			return
 		}
-		if err == service.ErrNotPropertyOwner {
-			models.Forbidden(c, "You are not the owner of this property")
+		if err == services.ErrNotPropertyOwner {
+			tools.Forbidden(c, "You are not the owner of this property")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 5. DeleteProperty 删除房产
@@ -241,31 +242,31 @@ func (h *PropertyHandler) UpdateProperty(c *gin.Context) {
 func (h *PropertyHandler) DeleteProperty(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		models.Unauthorized(c, "Unauthorized")
+		tools.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid property ID")
+		tools.BadRequest(c, "Invalid property ID")
 		return
 	}
 
 	err = h.propertyService.DeleteProperty(c.Request.Context(), userID.(uint), uint(id))
 	if err != nil {
-		if err == service.ErrPropertyNotFound {
-			models.NotFound(c, "Property not found")
+		if err == services.ErrPropertyNotFound {
+			tools.NotFound(c, "Property not found")
 			return
 		}
-		if err == service.ErrNotPropertyOwner {
-			models.Forbidden(c, "You are not the owner of this property")
+		if err == services.ErrNotPropertyOwner {
+			tools.Forbidden(c, "You are not the owner of this property")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{
+	tools.Success(c, gin.H{
 		"message": "Property deleted successfully",
 	})
 }
@@ -287,7 +288,7 @@ func (h *PropertyHandler) DeleteProperty(c *gin.Context) {
 func (h *PropertyHandler) GetSimilarProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "Invalid property ID")
+		tools.BadRequest(c, "Invalid property ID")
 		return
 	}
 
@@ -298,15 +299,15 @@ func (h *PropertyHandler) GetSimilarProperties(c *gin.Context) {
 
 	properties, err := h.propertyService.GetSimilarProperties(c.Request.Context(), uint(id), limit)
 	if err != nil {
-		if err == service.ErrPropertyNotFound {
-			models.NotFound(c, "Property not found")
+		if err == services.ErrPropertyNotFound {
+			tools.NotFound(c, "Property not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, properties)
+	tools.Success(c, properties)
 }
 
 // 7. GetFeaturedProperties 精选房源
@@ -330,11 +331,11 @@ func (h *PropertyHandler) GetFeaturedProperties(c *gin.Context) {
 
 	properties, err := h.propertyService.GetFeaturedProperties(c.Request.Context(), listingType, limit)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, properties)
+	tools.Success(c, properties)
 }
 
 // 8. GetHotProperties 热门房源
@@ -358,11 +359,11 @@ func (h *PropertyHandler) GetHotProperties(c *gin.Context) {
 
 	properties, err := h.propertyService.GetHotProperties(c.Request.Context(), listingType, limit)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, properties)
+	tools.Success(c, properties)
 }
 
 // 9. ListBuyProperties 买房房源列表
@@ -391,7 +392,7 @@ func (h *PropertyHandler) GetHotProperties(c *gin.Context) {
 func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -423,11 +424,11 @@ func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 10. ListNewProperties 新房列表
@@ -448,7 +449,7 @@ func (h *PropertyHandler) ListBuyProperties(c *gin.Context) {
 func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -475,11 +476,11 @@ func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 11. ListSecondhandProperties 二手房列表
@@ -500,7 +501,7 @@ func (h *PropertyHandler) ListNewProperties(c *gin.Context) {
 func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 	var req models.ListBuyPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -526,11 +527,11 @@ func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 12. ListRentProperties 租房房源列表
@@ -559,7 +560,7 @@ func (h *PropertyHandler) ListSecondhandProperties(c *gin.Context) {
 func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -589,11 +590,11 @@ func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 13. ListShortTermRent 短租房源
@@ -614,7 +615,7 @@ func (h *PropertyHandler) ListRentProperties(c *gin.Context) {
 func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -641,11 +642,11 @@ func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }
 
 // 14. ListLongTermRent 长租房源
@@ -666,7 +667,7 @@ func (h *PropertyHandler) ListShortTermRent(c *gin.Context) {
 func (h *PropertyHandler) ListLongTermRent(c *gin.Context) {
 	var req models.ListRentPropertiesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -693,9 +694,9 @@ func (h *PropertyHandler) ListLongTermRent(c *gin.Context) {
 
 	properties, total, err := h.propertyService.ListProperties(c.Request.Context(), &listReq)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
+	tools.SuccessWithPagination(c, properties, models.NewPagination(req.Page, req.PageSize, total))
 }

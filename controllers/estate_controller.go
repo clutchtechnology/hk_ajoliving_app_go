@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
@@ -10,7 +11,7 @@ import (
 )
 
 // EstateHandler Methods:
-// 0. NewEstateHandler(service service.EstateService) -> 注入 EstateService
+// 0. NewEstateHandler(service services.EstateService) -> 注入 EstateService
 // 1. ListEstates(c *gin.Context) -> 获取屋苑列表
 // 2. GetEstate(c *gin.Context) -> 获取单个屋苑详情
 // 3. GetEstateProperties(c *gin.Context) -> 获取屋苑内的房源列表
@@ -21,11 +22,11 @@ import (
 // 8. DeleteEstate(c *gin.Context) -> 删除屋苑（需要认证）
 
 type EstateHandler struct {
-	service service.EstateService
+	service services.EstateService
 }
 
 // 0. NewEstateHandler -> 注入 EstateService
-func NewEstateHandler(service service.EstateService) *EstateHandler {
+func NewEstateHandler(service services.EstateService) *EstateHandler {
 	return &EstateHandler{service: service}
 }
 
@@ -53,7 +54,7 @@ func NewEstateHandler(service service.EstateService) *EstateHandler {
 func (h *EstateHandler) ListEstates(c *gin.Context) {
 	var req models.ListEstatesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
@@ -67,11 +68,11 @@ func (h *EstateHandler) ListEstates(c *gin.Context) {
 
 	estates, total, err := h.service.ListEstates(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, estates, req.Page, req.PageSize, total)
+	tools.SuccessWithPagination(c, estates, req.Page, req.PageSize, total)
 }
 
 // 2. GetEstate -> 获取单个屋苑详情
@@ -87,17 +88,17 @@ func (h *EstateHandler) ListEstates(c *gin.Context) {
 func (h *EstateHandler) GetEstate(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 
 	estate, err := h.service.GetEstate(c.Request.Context(), uint(id))
 	if err != nil {
-		models.NotFound(c, "estate not found")
+		tools.NotFound(c, "estate not found")
 		return
 	}
 
-	models.Success(c, estate)
+	tools.Success(c, estate)
 }
 
 // 3. GetEstateProperties -> 获取屋苑内的房源列表
@@ -116,7 +117,7 @@ func (h *EstateHandler) GetEstate(c *gin.Context) {
 func (h *EstateHandler) GetEstateProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 
@@ -135,11 +136,11 @@ func (h *EstateHandler) GetEstateProperties(c *gin.Context) {
 
 	properties, total, err := h.service.GetEstateProperties(c.Request.Context(), uint(id), listingType, page, pageSize)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.SuccessWithPagination(c, properties, page, pageSize, total)
+	tools.SuccessWithPagination(c, properties, page, pageSize, total)
 }
 
 // 4. GetEstateStatistics -> 获取屋苑统计数据
@@ -155,17 +156,17 @@ func (h *EstateHandler) GetEstateProperties(c *gin.Context) {
 func (h *EstateHandler) GetEstateStatistics(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 
 	statistics, err := h.service.GetEstateStatistics(c.Request.Context(), uint(id))
 	if err != nil {
-		models.NotFound(c, "estate not found")
+		tools.NotFound(c, "estate not found")
 		return
 	}
 
-	models.Success(c, statistics)
+	tools.Success(c, statistics)
 }
 
 // 5. GetFeaturedEstates -> 获取精选屋苑
@@ -186,11 +187,11 @@ func (h *EstateHandler) GetFeaturedEstates(c *gin.Context) {
 
 	estates, err := h.service.GetFeaturedEstates(c.Request.Context(), limit)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, estates)
+	tools.Success(c, estates)
 }
 
 // 6. CreateEstate -> 创建屋苑（需要认证）
@@ -208,17 +209,17 @@ func (h *EstateHandler) GetFeaturedEstates(c *gin.Context) {
 func (h *EstateHandler) CreateEstate(c *gin.Context) {
 	var req models.CreateEstateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	estate, err := h.service.CreateEstate(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Created(c, estate)
+	tools.Created(c, estate)
 }
 
 // 7. UpdateEstate -> 更新屋苑（需要认证）
@@ -238,23 +239,23 @@ func (h *EstateHandler) CreateEstate(c *gin.Context) {
 func (h *EstateHandler) UpdateEstate(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 
 	var req models.UpdateEstateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
 	estate, err := h.service.UpdateEstate(c.Request.Context(), uint(id), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, estate)
+	tools.Success(c, estate)
 }
 
 // 8. DeleteEstate -> 删除屋苑（需要认证）
@@ -273,14 +274,14 @@ func (h *EstateHandler) UpdateEstate(c *gin.Context) {
 func (h *EstateHandler) DeleteEstate(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 
 	if err := h.service.DeleteEstate(c.Request.Context(), uint(id)); err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	models.Success(c, gin.H{"message": "estate deleted successfully"})
+	tools.Success(c, gin.H{"message": "estate deleted successfully"})
 }

@@ -42,6 +42,8 @@ func NewSearchService(repo databases.SearchRepository, logger *zap.Logger) *Sear
 
 // 1. GlobalSearch 全局搜索
 func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interface{}) (*map[string]interface{}, error) {
+	keyword, _ := (*req)["keyword"].(string)
+	
 	// 并行搜索多个类型
 	propertyChan := make(chan []*models.Property)
 	estateChan := make(chan []*models.Estate)
@@ -52,11 +54,11 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interf
 	// 搜索房产
 	go func() {
 		filters := &models.SearchPropertiesRequest{
-			Keyword:  req.Keyword,
+			Keyword:  keyword,
 			Page:     1,
 			PageSize: 5,
 		}
-		properties, _, err := s.repo.SearchProperties(ctx, req.Keyword, filters)
+		properties, _, err := s.repo.SearchProperties(ctx, keyword, filters)
 		if err != nil {
 			errChan <- err
 			return
@@ -66,7 +68,7 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interf
 
 	// 搜索屋苑
 	go func() {
-		estates, _, err := s.repo.SearchEstates(ctx, req.Keyword, nil, 1, 5)
+		estates, _, err := s.repo.SearchEstates(ctx, keyword, nil, 1, 5)
 		if err != nil {
 			errChan <- err
 			return
@@ -76,7 +78,7 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interf
 
 	// 搜索代理人
 	go func() {
-		agents, _, err := s.repo.SearchAgents(ctx, req.Keyword, nil, 1, 5)
+		agents, _, err := s.repo.SearchAgents(ctx, keyword, nil, 1, 5)
 		if err != nil {
 			errChan <- err
 			return
@@ -86,7 +88,7 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interf
 
 	// 搜索新闻
 	go func() {
-		news, err := s.repo.SearchNews(ctx, req.Keyword, 5)
+		news, err := s.repo.SearchNews(ctx, keyword, 5)
 		if err != nil {
 			errChan <- err
 			return
@@ -141,20 +143,22 @@ func (s *SearchService) GlobalSearch(ctx context.Context, req *map[string]interf
 
 	// 保存搜索历史
 	history := &models.SearchHistory{
-		Keyword:     req.Keyword,
+		Keyword:     keyword,
 		SearchType:  models.SearchTypeGlobal,
 		ResultCount: totalCount,
 	}
 	_ = s.repo.SaveSearchHistory(ctx, history)
 
-	return &map[string]interface{}{
-		Properties: propertyResults,
-		Estates:    estateResults,
-		Agents:     agentResults,
-		News:       newsResults,
-		TotalCount: totalCount,
-		Keyword:    req.Keyword,
-	}, nil
+	result := map[string]interface{}{
+		"properties":  propertyResults,
+		"estates":     estateResults,
+		"agents":      agentResults,
+		"news":        newsResults,
+		"total_count": totalCount,
+		"keyword":     keyword,
+	}
+	
+	return &result, nil
 }
 
 // 2. SearchProperties 搜索房产
@@ -166,15 +170,9 @@ func (s *SearchService) SearchProperties(ctx context.Context, req *models.Search
 	}
 
 	// 转换为响应格式
-	propertyResults := make([]*models.Property, len(properties))
+	propertyResults := make([]models.Property, len(properties))
 	for i, prop := range properties {
-		propertyResults[i] = convertToPropertySearchResult(prop)
-	}
-
-	// 计算总页数
-	totalPage := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
-		totalPage++
+		propertyResults[i] = *convertToPropertySearchResult(prop)
 	}
 
 	// 保存搜索历史
@@ -185,185 +183,136 @@ func (s *SearchService) SearchProperties(ctx context.Context, req *models.Search
 	}
 	_ = s.repo.SaveSearchHistory(ctx, history)
 
-	return &[]models.Property{
-		Properties: propertyResults,
-		Pagination: &models.Pagination{
-			Page:      req.Page,
-			PageSize:  req.PageSize,
-			Total:     total,
-			TotalPage: totalPage,
-		},
-		Keyword: req.Keyword,
-	}, nil
+	return &propertyResults, nil
 }
 
 // 3. SearchEstates 搜索屋苑
 func (s *SearchService) SearchEstates(ctx context.Context, req *models.ListEstatesRequest) (*[]models.Estate, error) {
-	estates, total, err := s.repo.SearchEstates(ctx, req.Keyword, req.DistrictID, req.Page, req.PageSize)
+	// ListEstatesRequest doesn't have Keyword, use Name for search
+	keyword := ""
+	if req.Name != nil {
+		keyword = *req.Name
+	}
+	
+	estates, total, err := s.repo.SearchEstates(ctx, keyword, req.DistrictID, req.Page, req.PageSize)
 	if err != nil {
 		s.logger.Error("Failed to search estates", zap.Error(err))
 		return nil, err
 	}
 
 	// 转换为响应格式
-	estateResults := make([]*models.Estate, len(estates))
+	estateResults := make([]models.Estate, len(estates))
 	for i, estate := range estates {
-		estateResults[i] = convertToEstateSearchResult(estate)
-	}
-
-	// 计算总页数
-	totalPage := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
-		totalPage++
+		estateResults[i] = *convertToEstateSearchResult(estate)
 	}
 
 	// 保存搜索历史
 	history := &models.SearchHistory{
-		Keyword:     req.Keyword,
+		Keyword:     keyword,
 		SearchType:  models.SearchTypeEstate,
 		ResultCount: int(total),
 	}
 	_ = s.repo.SaveSearchHistory(ctx, history)
 
-	return &[]models.Estate{
-		Estates: estateResults,
-		Pagination: &models.Pagination{
-			Page:      req.Page,
-			PageSize:  req.PageSize,
-			Total:     total,
-			TotalPage: totalPage,
-		},
-		Keyword: req.Keyword,
-	}, nil
+	return &estateResults, nil
 }
 
 // 4. SearchAgents 搜索代理人
 func (s *SearchService) SearchAgents(ctx context.Context, req *models.ListAgentsRequest) (*[]models.Agent, error) {
-	agents, total, err := s.repo.SearchAgents(ctx, req.Keyword, req.DistrictID, req.Page, req.PageSize)
+	keyword := ""
+	if req.Keyword != nil {
+		keyword = *req.Keyword
+	}
+	
+	agents, total, err := s.repo.SearchAgents(ctx, keyword, req.DistrictID, req.Page, req.PageSize)
 	if err != nil {
 		s.logger.Error("Failed to search agents", zap.Error(err))
 		return nil, err
 	}
 
 	// 转换为响应格式
-	agentResults := make([]*models.Agent, len(agents))
+	agentResults := make([]models.Agent, len(agents))
 	for i, agent := range agents {
-		agentResults[i] = convertToAgentSearchResult(agent)
-	}
-
-	// 计算总页数
-	totalPage := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
-		totalPage++
+		agentResults[i] = *convertToAgentSearchResult(agent)
 	}
 
 	// 保存搜索历史
 	history := &models.SearchHistory{
-		Keyword:     req.Keyword,
+		Keyword:     keyword,
 		SearchType:  models.SearchTypeAgent,
 		ResultCount: int(total),
 	}
 	_ = s.repo.SaveSearchHistory(ctx, history)
 
-	return &[]models.Agent{
-		Agents: agentResults,
-		Pagination: &models.Pagination{
-			Page:      req.Page,
-			PageSize:  req.PageSize,
-			Total:     total,
-			TotalPage: totalPage,
-		},
-		Keyword: req.Keyword,
-	}, nil
+	return &agentResults, nil
 }
 
 // 5. GetSearchSuggestions 获取搜索建议
 func (s *SearchService) GetSearchSuggestions(ctx context.Context, req *map[string]interface{}) (*[]string, error) {
-	var suggestions []*models.SearchSuggestion
+	keyword, _ := (*req)["keyword"].(string)
+	reqType, _ := (*req)["type"].(*string)
+	limit, _ := (*req)["limit"].(int)
+	if limit == 0 {
+		limit = 10
+	}
+	
+	var suggestions []string
 
 	// 根据类型获取建议
-	if req.Type == nil || *req.Type == "property" {
-		propertySuggestions, err := s.repo.GetPropertySuggestions(ctx, req.Keyword, req.Limit)
+	if reqType == nil || *reqType == "property" {
+		propertySuggestions, err := s.repo.GetPropertySuggestions(ctx, keyword, limit)
 		if err == nil {
-			for _, text := range propertySuggestions {
-				suggestions = append(suggestions, &models.SearchSuggestion{
-					Text: text,
-					Type: "property",
-				})
-			}
+			suggestions = append(suggestions, propertySuggestions...)
 		}
 	}
 
-	if req.Type == nil || *req.Type == "estate" {
-		estateSuggestions, err := s.repo.GetEstateSuggestions(ctx, req.Keyword, req.Limit)
+	if reqType == nil || *reqType == "estate" {
+		estateSuggestions, err := s.repo.GetEstateSuggestions(ctx, keyword, limit)
 		if err == nil {
-			for _, text := range estateSuggestions {
-				suggestions = append(suggestions, &models.SearchSuggestion{
-					Text: text,
-					Type: "estate",
-				})
-			}
+			suggestions = append(suggestions, estateSuggestions...)
 		}
 	}
 
-	if req.Type == nil || *req.Type == "agent" {
-		agentSuggestions, err := s.repo.GetAgentSuggestions(ctx, req.Keyword, req.Limit)
+	if reqType == nil || *reqType == "agent" {
+		agentSuggestions, err := s.repo.GetAgentSuggestions(ctx, keyword, limit)
 		if err == nil {
-			for _, text := range agentSuggestions {
-				suggestions = append(suggestions, &models.SearchSuggestion{
-					Text: text,
-					Type: "agent",
-				})
-			}
+			suggestions = append(suggestions, agentSuggestions...)
 		}
 	}
 
 	// 限制总数
-	if len(suggestions) > req.Limit {
-		suggestions = suggestions[:req.Limit]
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
 	}
 
-	return &[]string{
-		Suggestions: suggestions,
-		Keyword:     req.Keyword,
-	}, nil
+	return &suggestions, nil
 }
 
 // 6. GetSearchHistory 获取搜索历史
 func (s *SearchService) GetSearchHistory(ctx context.Context, userID *uint, req *map[string]interface{}) (*[]models.SearchHistory, error) {
-	histories, total, err := s.repo.GetSearchHistory(ctx, userID, req.Type, req.Page, req.PageSize)
+	reqType, _ := (*req)["type"].(*string)
+	page, _ := (*req)["page"].(int)
+	pageSize, _ := (*req)["page_size"].(int)
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	
+	histories, _, err := s.repo.GetSearchHistory(ctx, userID, reqType, page, pageSize)
 	if err != nil {
 		s.logger.Error("Failed to get search history", zap.Error(err))
 		return nil, err
 	}
 
 	// 转换为响应格式
-	historyItems := make([]*models.SearchHistoryItem, len(histories))
+	historyResults := make([]models.SearchHistory, len(histories))
 	for i, history := range histories {
-		historyItems[i] = &models.SearchHistoryItem{
-			ID:          history.ID,
-			Keyword:     history.Keyword,
-			SearchType:  string(history.SearchType),
-			ResultCount: history.ResultCount,
-			CreatedAt:   history.CreatedAt.Format("2006-01-02 15:04:05"),
-		}
+		historyResults[i] = *history
 	}
 
-	// 计算总页数
-	totalPage := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
-		totalPage++
-	}
-
-	return &[]models.SearchHistory{
-		Histories: historyItems,
-		Pagination: &models.Pagination{
-			Page:      req.Page,
-			PageSize:  req.PageSize,
-			Total:     total,
-			TotalPage: totalPage,
-		},
-	}, nil
+	return &historyResults, nil
 }
 
 // Helper functions for converting models to response DTOs
@@ -378,19 +327,9 @@ func convertToPropertySearchResult(prop *models.Property) *models.Property {
 		Bathrooms:   prop.Bathrooms,
 		ListingType: prop.ListingType,
 		Address:     prop.Address,
-		CreatedAt:   prop.CreatedAt.Format("2006-01-02 15:04:05"),
-	}
-
-	if prop.District != nil {
-		result.District = &prop.District.NameZhHant
-	}
-
-	if prop.Estate != nil {
-		result.EstateName = &prop.Estate.Name
-	}
-
-	if len(prop.Images) > 0 {
-		result.ImageURL = &prop.Images[0].URL
+		CreatedAt:   prop.CreatedAt,
+		District:    prop.District,
+		Images:      prop.Images,
 	}
 
 	return result
@@ -398,21 +337,14 @@ func convertToPropertySearchResult(prop *models.Property) *models.Property {
 
 func convertToEstateSearchResult(estate *models.Estate) *models.Estate {
 	result := &models.Estate{
-		ID:              estate.ID,
-		Name:            estate.Name,
-		NameEn:          estate.NameEn,
-		Address:         estate.Address,
-		BuildingCount:   estate.BuildingCount,
-		UnitCount:       estate.UnitCount,
-		PropertyCount:   0, // TODO: 从关联查询获取
-	}
-
-	if estate.District != nil {
-		result.District = estate.District.NameZhHant
-	}
-
-	if len(estate.Images) > 0 {
-		result.ImageURL = &estate.Images[0].ImageURL
+		ID:         estate.ID,
+		Name:       estate.Name,
+		NameEn:     estate.NameEn,
+		Address:    estate.Address,
+		TotalBlocks: estate.TotalBlocks,
+		TotalUnits:  estate.TotalUnits,
+		District:   estate.District,
+		Images:     estate.Images,
 	}
 
 	return result
@@ -420,18 +352,13 @@ func convertToEstateSearchResult(estate *models.Estate) *models.Estate {
 
 func convertToAgentSearchResult(agent *models.Agent) *models.Agent {
 	result := &models.Agent{
-		ID:            agent.ID,
-		Name:          agent.Name,
-		LicenseNo:     agent.LicenseNo,
-		Phone:         agent.Phone,
-		Email:         agent.Email,
-		AvatarURL:     agent.AvatarURL,
-		PropertyCount: 0, // TODO: 从关联查询获取
-		Rating:        0, // TODO: 计算评分
-	}
-
-	if agent.Agency != nil {
-		result.AgencyName = &agent.Agency.CompanyName
+		ID:          agent.ID,
+		AgentName:   agent.AgentName,
+		LicenseNo:   agent.LicenseNo,
+		Phone:       agent.Phone,
+		Email:       agent.Email,
+		ProfilePhoto: agent.ProfilePhoto,
+		Agency:      agent.Agency,
 	}
 
 	return result
@@ -439,19 +366,13 @@ func convertToAgentSearchResult(agent *models.Agent) *models.Agent {
 
 func convertToNewsSearchResult(news *models.News) *models.News {
 	result := &models.News{
-		ID:        news.ID,
-		Title:     news.Title,
-		Summary:   news.Summary,
-		ImageURL:  news.ImageURL,
-		ViewCount: news.ViewCount,
-	}
-
-	if news.Category != nil {
-		result.Category = news.Category.Name
-	}
-
-	if news.PublishedAt != nil {
-		result.PublishedAt = news.PublishedAt.Format("2006-01-02 15:04:05")
+		ID:            news.ID,
+		Title:         news.Title,
+		Summary:       news.Summary,
+		CoverImageURL: news.CoverImageURL,
+		ViewCount:     news.ViewCount,
+		Category:      news.Category,
+		PublishedAt:   news.PublishedAt,
 	}
 
 	return result

@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	ErrCartItemNotFound      = errors.New("cart item not found")
-	ErrNotCartItemOwner      = errors.New("you are not the owner of this cart item")
-	ErrFurnitureNotAvailable = errors.New("furniture is not available")
+	ErrCartItemNotFound       = errors.New("cart item not found")
+	ErrNotCartItemOwner       = errors.New("you are not the owner of this cart item")
+	ErrFurnitureNotFound      = errors.New("furniture not found")
+	ErrFurnitureNotAvailable  = errors.New("furniture is not available")
 	ErrFurnitureAlreadyInCart = errors.New("furniture is already in cart")
 )
 
@@ -83,14 +84,11 @@ func (s *CartService) AddToCart(ctx context.Context, userID uint, req *models.Ad
 			return nil, err
 		}
 
-		totalPrice := furniture.Price * float64(existingItem.Quantity)
 		return &models.AddToCartResponse{
-			ID:          existingItem.ID,
-			FurnitureID: existingItem.FurnitureID,
-			Quantity:    existingItem.Quantity,
-			TotalPrice:  totalPrice,
-			CreatedAt:   existingItem.CreatedAt,
-			}, nil
+			Success: true,
+			Message: "Item quantity updated in cart",
+			Item:    existingItem,
+		}, nil
 	}
 
 	// 创建新的购物车项
@@ -104,14 +102,11 @@ func (s *CartService) AddToCart(ctx context.Context, userID uint, req *models.Ad
 		return nil, err
 	}
 
-	totalPrice := furniture.Price * float64(cartItem.Quantity)
 	return &models.AddToCartResponse{
-		ID:          cartItem.ID,
-		FurnitureID: cartItem.FurnitureID,
-		Quantity:    cartItem.Quantity,
-		TotalPrice:  totalPrice,
-		CreatedAt:   cartItem.CreatedAt,
-		}, nil
+		Success: true,
+		Message: "Item added to cart successfully",
+		Item:    cartItem,
+	}, nil
 }
 
 // 3. UpdateCartItem 更新购物车项
@@ -137,17 +132,8 @@ func (s *CartService) UpdateCartItem(ctx context.Context, userID uint, id uint, 
 		return nil, err
 	}
 
-	totalPrice := float64(0)
-	if cartItem.Furniture != nil {
-		totalPrice = cartItem.Furniture.Price * float64(cartItem.Quantity)
-	}
-
-	return &models.CartResponse{
-		ID:         cartItem.ID,
-		Quantity:   cartItem.Quantity,
-		TotalPrice: totalPrice,
-		UpdatedAt:  cartItem.UpdatedAt,
-		}, nil
+	// 返回完整的购物车
+	return s.GetCart(ctx, userID)
 }
 
 // 4. RemoveFromCart 移除购物车项
@@ -180,65 +166,17 @@ func (s *CartService) ClearCart(ctx context.Context, userID uint) error {
 // convertToCartResponse 转换为购物车响应
 func (s *CartService) convertToCartResponse(cartItems []*models.CartItem) *models.CartResponse {
 	items := make([]models.CartItem, 0, len(cartItems))
-	totalQuantity := 0
 	totalPrice := 0.0
-	availableItems := 0
-	unavailableItems := 0
 
 	for _, item := range cartItems {
-		itemResp := s.convertToCartItemResponse(item)
-		items = append(items, itemResp)
-		
-		totalQuantity += item.Quantity
-		totalPrice += itemResp.TotalPrice
-		
-		if itemResp.IsAvailable {
-			availableItems++
-		} else {
-			unavailableItems++
-		}
+		items = append(items, *item)
+		totalPrice += item.GetTotalPrice()
 	}
 
 	return &models.CartResponse{
-		Items:            items,
-		TotalItems:       len(items),
-		TotalQuantity:    totalQuantity,
-		TotalPrice:       totalPrice,
-		AvailableItems:   availableItems,
-		UnavailableItems: unavailableItems,
+		Items:      items,
+		TotalItems: len(items),
+		TotalPrice: totalPrice,
 	}
 }
 
-// convertToCartItemResponse 转换为购物车项响应
-func (s *CartService) convertToCartItemResponse(item *models.CartItem) models.CartItem {
-	resp := models.CartItem{
-		ID:          item.ID,
-		FurnitureID: item.FurnitureID,
-		Quantity:    item.Quantity,
-		TotalPrice:  item.GetTotalPrice(),
-		IsAvailable: item.IsAvailable(),
-		CreatedAt:   item.CreatedAt,
-		UpdatedAt:   item.UpdatedAt,
-	}
-
-	// 家具信息
-	if item.Furniture != nil {
-		furnitureResp := &models.CartFurnitureResponse{
-			ID:          item.Furniture.ID,
-			FurnitureNo: item.Furniture.FurnitureNo,
-			Title:       item.Furniture.Title,
-			Price:       item.Furniture.Price,
-			Status:      string(item.Furniture.Status),
-			IsAvailable: item.Furniture.IsAvailable(),
-		}
-
-		// 封面图片
-		if len(item.Furniture.Images) > 0 {
-			furnitureResp.CoverImage = &item.Furniture.Images[0].ImageURL
-		}
-
-		resp.Furniture = furnitureResp
-	}
-
-	return resp
-}

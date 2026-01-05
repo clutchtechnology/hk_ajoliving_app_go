@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -13,11 +14,11 @@ import (
 // SchoolHandler 校网和学校处理器
 type SchoolHandler struct {
 	*BaseHandler
-	service service.SchoolService
+	service services.SchoolService
 }
 
 // NewSchoolHandler 创建校网和学校处理器
-func NewSchoolHandler(service service.SchoolService) *SchoolHandler {
+func NewSchoolHandler(service services.SchoolService) *SchoolHandler {
 	return &SchoolHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -44,17 +45,17 @@ func NewSchoolHandler(service service.SchoolService) *SchoolHandler {
 func (h *SchoolHandler) ListSchoolNets(c *gin.Context) {
 	var filter models.ListSchoolNetsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	schoolNets, total, err := h.service.ListSchoolNets(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, schoolNets, &models.Pagination{
+	tools.SuccessWithPagination(c, schoolNets, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -77,21 +78,21 @@ func (h *SchoolHandler) ListSchoolNets(c *gin.Context) {
 func (h *SchoolHandler) GetSchoolNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid school net id")
+		tools.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	schoolNet, err := h.service.GetSchoolNet(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "school net not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "school net not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, schoolNet)
+	tools.Success(c, schoolNet)
 }
 
 // GetSchoolsInNet 获取校网内学校
@@ -109,21 +110,21 @@ func (h *SchoolHandler) GetSchoolNet(c *gin.Context) {
 func (h *SchoolHandler) GetSchoolsInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid school net id")
+		tools.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	schools, err := h.service.GetSchoolsInNet(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "school net not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "school net not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, schools)
+	tools.Success(c, schools)
 }
 
 // GetPropertiesInNet 获取校网内房源
@@ -141,21 +142,21 @@ func (h *SchoolHandler) GetSchoolsInNet(c *gin.Context) {
 func (h *SchoolHandler) GetPropertiesInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid school net id")
+		tools.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	properties, err := h.service.GetPropertiesInNet(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "school net not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "school net not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, properties)
+	tools.Success(c, properties)
 }
 
 // GetEstatesInNet 获取校网内屋苑
@@ -173,21 +174,21 @@ func (h *SchoolHandler) GetPropertiesInNet(c *gin.Context) {
 func (h *SchoolHandler) GetEstatesInNet(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid school net id")
+		tools.BadRequest(c, "invalid school net id")
 		return
 	}
 	
 	estates, err := h.service.GetEstatesInNet(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "school net not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "school net not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, estates)
+	tools.Success(c, estates)
 }
 
 // SearchSchoolNets 搜索校网
@@ -206,17 +207,17 @@ func (h *SchoolHandler) GetEstatesInNet(c *gin.Context) {
 func (h *SchoolHandler) SearchSchoolNets(c *gin.Context) {
 	var filter models.SearchSchoolNetsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	schoolNets, total, err := h.service.SearchSchoolNets(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, schoolNets, &models.Pagination{
+	tools.SuccessWithPagination(c, schoolNets, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -247,17 +248,17 @@ func (h *SchoolHandler) SearchSchoolNets(c *gin.Context) {
 func (h *SchoolHandler) ListSchools(c *gin.Context) {
 	var filter models.ListSchoolsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	schools, total, err := h.service.ListSchools(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, schools, &models.Pagination{
+	tools.SuccessWithPagination(c, schools, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -280,21 +281,21 @@ func (h *SchoolHandler) ListSchools(c *gin.Context) {
 func (h *SchoolHandler) GetSchoolNetBySchoolID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid school id")
+		tools.BadRequest(c, "invalid school id")
 		return
 	}
 	
 	schoolNet, err := h.service.GetSchoolNetBySchoolID(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "school or school net not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "school or school net not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, schoolNet)
+	tools.Success(c, schoolNet)
 }
 
 // SearchSchools 搜索学校
@@ -313,17 +314,17 @@ func (h *SchoolHandler) GetSchoolNetBySchoolID(c *gin.Context) {
 func (h *SchoolHandler) SearchSchools(c *gin.Context) {
 	var filter models.SearchSchoolsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	schools, total, err := h.service.SearchSchools(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, schools, &models.Pagination{
+	tools.SuccessWithPagination(c, schools, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,

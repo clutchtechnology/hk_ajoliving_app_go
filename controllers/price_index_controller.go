@@ -13,7 +13,7 @@ import (
 // PriceIndexHandler 楼价指数处理器
 //
 // PriceIndexHandler Methods:
-// 0. NewPriceIndexHandler(service service.PriceIndexService) -> 注入 PriceIndexService
+// 0. NewPriceIndexHandler(service services.PriceIndexService) -> 注入 PriceIndexService
 // 1. GetPriceIndex(c *gin.Context) -> 获取楼价指数列表
 // 2. GetLatestPriceIndex(c *gin.Context) -> 获取最新楼价指数
 // 3. GetDistrictPriceIndex(c *gin.Context) -> 获取地区楼价指数
@@ -26,11 +26,11 @@ import (
 // 10. UpdatePriceIndex(c *gin.Context) -> 更新楼价指数（需认证）
 type PriceIndexHandler struct {
 	*BaseHandler
-	service service.PriceIndexService
+	service services.PriceIndexService
 }
 
 // 0. NewPriceIndexHandler 创建楼价指数处理器
-func NewPriceIndexHandler(service service.PriceIndexService) *PriceIndexHandler {
+func NewPriceIndexHandler(service services.PriceIndexService) *PriceIndexHandler {
 	return &PriceIndexHandler{
 		BaseHandler: NewBaseHandler(),
 		service:     service,
@@ -58,17 +58,17 @@ func NewPriceIndexHandler(service service.PriceIndexService) *PriceIndexHandler 
 func (h *PriceIndexHandler) GetPriceIndex(c *gin.Context) {
 	var filter models.GetPriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, total, err := h.service.GetPriceIndex(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.SuccessWithPagination(c, indices, &models.Pagination{
+	tools.SuccessWithPagination(c, indices, &tools.Pagination{
 		Page:      filter.Page,
 		PageSize:  filter.PageSize,
 		Total:     total,
@@ -88,11 +88,11 @@ func (h *PriceIndexHandler) GetPriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) GetLatestPriceIndex(c *gin.Context) {
 	result, err := h.service.GetLatestPriceIndex(c.Request.Context())
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 3. GetDistrictPriceIndex 获取地区楼价指数
@@ -112,23 +112,23 @@ func (h *PriceIndexHandler) GetLatestPriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) GetDistrictPriceIndex(c *gin.Context) {
 	districtID, err := strconv.ParseUint(c.Param("districtId"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid district id")
+		tools.BadRequest(c, "invalid district id")
 		return
 	}
 	
 	var filter models.GetDistrictPriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, err := h.service.GetDistrictPriceIndex(c.Request.Context(), uint(districtID), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, indices)
+	tools.Success(c, indices)
 }
 
 // 4. GetEstatePriceIndex 获取屋苑楼价指数
@@ -148,23 +148,23 @@ func (h *PriceIndexHandler) GetDistrictPriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) GetEstatePriceIndex(c *gin.Context) {
 	estateID, err := strconv.ParseUint(c.Param("estateId"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid estate id")
+		tools.BadRequest(c, "invalid estate id")
 		return
 	}
 	
 	var filter models.GetEstatePriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	indices, err := h.service.GetEstatePriceIndex(c.Request.Context(), uint(estateID), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, indices)
+	tools.Success(c, indices)
 }
 
 // 5. GetPriceTrends 获取价格走势
@@ -187,21 +187,21 @@ func (h *PriceIndexHandler) GetEstatePriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) GetPriceTrends(c *gin.Context) {
 	var filter models.GetPriceTrendsRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	trends, err := h.service.GetPriceTrends(c.Request.Context(), &filter)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "no trend data found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "no trend data found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, trends)
+	tools.Success(c, trends)
 }
 
 // 6. ComparePriceIndex 对比楼价指数
@@ -223,17 +223,17 @@ func (h *PriceIndexHandler) GetPriceTrends(c *gin.Context) {
 func (h *PriceIndexHandler) ComparePriceIndex(c *gin.Context) {
 	var filter models.ComparePriceIndexRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.ComparePriceIndex(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 7. ExportPriceData 导出价格数据
@@ -256,17 +256,17 @@ func (h *PriceIndexHandler) ComparePriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) ExportPriceData(c *gin.Context) {
 	var filter models.ExportPriceDataRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.ExportPriceData(c.Request.Context(), &filter)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
 
 // 8. GetPriceIndexHistory 获取历史楼价指数
@@ -288,21 +288,21 @@ func (h *PriceIndexHandler) ExportPriceData(c *gin.Context) {
 func (h *PriceIndexHandler) GetPriceIndexHistory(c *gin.Context) {
 	var filter models.GetPriceIndexHistoryRequest
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	history, err := h.service.GetPriceIndexHistory(c.Request.Context(), &filter)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "no history data found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "no history data found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, history)
+	tools.Success(c, history)
 }
 
 // 9. CreatePriceIndex 创建楼价指数
@@ -321,17 +321,17 @@ func (h *PriceIndexHandler) GetPriceIndexHistory(c *gin.Context) {
 func (h *PriceIndexHandler) CreatePriceIndex(c *gin.Context) {
 	var req models.CreatePriceIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.CreatePriceIndex(c.Request.Context(), &req)
 	if err != nil {
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Created(c, result)
+	tools.Created(c, result)
 }
 
 // 10. UpdatePriceIndex 更新楼价指数
@@ -352,25 +352,25 @@ func (h *PriceIndexHandler) CreatePriceIndex(c *gin.Context) {
 func (h *PriceIndexHandler) UpdatePriceIndex(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		models.BadRequest(c, "invalid price index id")
+		tools.BadRequest(c, "invalid price index id")
 		return
 	}
 	
 	var req models.UpdatePriceIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		models.BadRequest(c, err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 	
 	result, err := h.service.UpdatePriceIndex(c.Request.Context(), uint(id), &req)
 	if err != nil {
-		if errors.Is(err, errors.ErrNotFound) {
-			models.NotFound(c, "price index not found")
+		if errors.Is(err, tools.ErrNotFound) {
+			tools.NotFound(c, "price index not found")
 			return
 		}
-		models.InternalError(c, err.Error())
+		tools.InternalError(c, err.Error())
 		return
 	}
 	
-	models.Success(c, result)
+	tools.Success(c, result)
 }
