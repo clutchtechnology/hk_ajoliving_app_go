@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
 	ErrUserNotActive      = errors.New("user is not active")
 	ErrOldPasswordInvalid = errors.New("old password is invalid")
 )
@@ -52,7 +51,7 @@ func (s *UserService) GetCurrentUser(ctx context.Context, userID uint) (*models.
 		return nil, err
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	return &models.User{
@@ -78,7 +77,7 @@ func (s *UserService) UpdateCurrentUser(ctx context.Context, userID uint, req *m
 		return nil, err
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 更新字段
@@ -119,7 +118,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint, req *mode
 		return err
 	}
 	if user == nil {
-		return ErrUserNotFound
+		return tools.ErrNotFound
 	}
 
 	// 验证旧密码

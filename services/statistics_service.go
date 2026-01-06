@@ -10,10 +10,10 @@ import (
 
 // StatisticsService 统计服务接口
 type StatisticsService interface {
-	GetOverviewStatistics(ctx context.Context, req *map[string]interface{}) (*map[string]interface{}, error)
-	GetPropertyStatistics(ctx context.Context, req *models.GetPropertyStatisticsRequest) (*map[string]interface{}, error)
-	GetTransactionStatistics(ctx context.Context, req *models.GetTransactionStatisticsRequest) (*map[string]interface{}, error)
-	GetUserStatistics(ctx context.Context, req *models.GetUserStatisticsRequest) (*map[string]interface{}, error)
+	GetOverviewStatistics(ctx context.Context, req *models.GetOverviewStatisticsRequest) (*models.OverviewStatisticsResponse, error)
+	GetPropertyStatistics(ctx context.Context, req *models.GetPropertyStatisticsRequest) (*models.PropertyStatisticsResponse, error)
+	GetTransactionStatistics(ctx context.Context, req *models.GetTransactionStatisticsRequest) (*models.TransactionStatisticsResponse, error)
+	GetUserStatistics(ctx context.Context, req *models.GetUserStatisticsRequest) (*models.UserStatisticsResponse, error)
 }
 
 type statisticsService struct {
@@ -30,23 +30,26 @@ func NewStatisticsService(repo databases.StatisticsRepository, logger *zap.Logge
 }
 
 // GetOverviewStatistics 获取总览统计
-func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *map[string]interface{}) (*map[string]interface{}, error) {
+func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *models.GetOverviewStatisticsRequest) (*models.OverviewStatisticsResponse, error) {
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	weekStart := todayStart.AddDate(0, 0, -7)
 	monthStart := todayStart.AddDate(0, -1, 0)
 
 	// 房产统计
-	propertyTotal, _ := s.repo.GetPropertyCount(ctx, &models.GetPropertyStatisticsRequest{})
+	todayStartStr := todayStart.Format("2006-01-02")
+	weekStartStr := weekStart.Format("2006-01-02")
+	monthStartStr := monthStart.Format("2006-01-02")
+	
 	propertyActive, _ := s.repo.GetPropertyCount(ctx, &models.GetPropertyStatisticsRequest{})
 	propertyNewToday, _ := s.repo.GetPropertyCount(ctx, &models.GetPropertyStatisticsRequest{
-		StartDate: &todayStart,
+		StartDate: &todayStartStr,
 	})
 	propertyNewWeek, _ := s.repo.GetPropertyCount(ctx, &models.GetPropertyStatisticsRequest{
-		StartDate: &weekStart,
+		StartDate: &weekStartStr,
 	})
 	propertyNewMonth, _ := s.repo.GetPropertyCount(ctx, &models.GetPropertyStatisticsRequest{
-		StartDate: &monthStart,
+		StartDate: &monthStartStr,
 	})
 
 	rentType := "rent"
@@ -64,13 +67,13 @@ func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *map[
 	userTotal, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{})
 	userStatusMap, _ := s.repo.GetUserCountByStatus(ctx, &models.GetUserStatisticsRequest{})
 	userNewToday, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &todayStart,
+		StartDate: &todayStartStr,
 	})
 	userNewWeek, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &weekStart,
+		StartDate: &weekStartStr,
 	})
 	userNewMonth, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &monthStart,
+		StartDate: &monthStartStr,
 	})
 
 	// 代理人统计
@@ -80,29 +83,29 @@ func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *map[
 	// 成交统计
 	transactionTotal, _ := s.repo.GetTransactionCount(ctx, &models.GetTransactionStatisticsRequest{})
 	transactionToday, _ := s.repo.GetTransactionCount(ctx, &models.GetTransactionStatisticsRequest{
-		StartDate: &todayStart,
+		StartDate: &todayStartStr,
 	})
 	transactionWeek, _ := s.repo.GetTransactionCount(ctx, &models.GetTransactionStatisticsRequest{
-		StartDate: &weekStart,
+		StartDate: &weekStartStr,
 	})
 	transactionMonth, _ := s.repo.GetTransactionCount(ctx, &models.GetTransactionStatisticsRequest{
-		StartDate: &monthStart,
+		StartDate: &monthStartStr,
 	})
 	transactionAmountStats, _ := s.repo.GetTransactionAmountStats(ctx, &models.GetTransactionStatisticsRequest{})
 
-	resp := &map[string]interface{}{
-		Properties: &models.PropertyOverview{
-			TotalCount:   int(propertyTotal),
-			ActiveCount:  int(propertyActive),
-			RentCount:    int(propertyRent),
-			SaleCount:    int(propertySale),
-			NewToday:     int(propertyNewToday),
-			NewThisWeek:  int(propertyNewWeek),
-			NewThisMonth: int(propertyNewMonth),
-			AveragePrice: propertyPriceStats["average"],
-			TotalValue:   propertyPriceStats["total"],
+	resp := &models.OverviewStatisticsResponse{
+		Properties: models.PropertyOverview{
+			TotalCount:    int(propertyActive),
+			ActiveCount:   int(propertyActive),
+			RentCount:     int(propertyRent),
+			SaleCount:     int(propertySale),
+			NewToday:      int(propertyNewToday),
+			NewThisWeek:   int(propertyNewWeek),
+			NewThisMonth:  int(propertyNewMonth),
+			AveragePrice:  propertyPriceStats["average"],
+			TotalValue:    propertyPriceStats["total"],
 		},
-		Users: &models.UserOverview{
+		Users: models.UserOverview{
 			TotalCount:    int(userTotal),
 			ActiveCount:   int(userStatusMap["active"]),
 			NewToday:      int(userNewToday),
@@ -110,24 +113,24 @@ func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *map[
 			NewThisMonth:  int(userNewMonth),
 			VerifiedCount: int(userStatusMap["verified"]),
 		},
-		Agents: &models.AgentOverview{
+		Agents: models.AgentOverview{
 			TotalCount:    int(agentTotal),
 			ActiveCount:   int(agentTotal),
 			AverageRating: agentAvgRating,
-			TopAgents:     0, // TODO: 实现 Top Agents 计算
+			TopAgents:     0,
 		},
-		Transactions: &models.TransactionOverview{
-			TotalCount:    int(transactionTotal),
-			TodayCount:    int(transactionToday),
-			ThisWeekCount: int(transactionWeek),
-			ThisMonthCount: int(transactionMonth),
-			TotalAmount:   transactionAmountStats["total"],
-			AverageAmount: transactionAmountStats["average"],
+		Transactions: models.TransactionOverview{
+			TotalCount:      int(transactionTotal),
+			TodayCount:      int(transactionToday),
+			ThisWeekCount:   int(transactionWeek),
+			ThisMonthCount:  int(transactionMonth),
+			TotalAmount:     transactionAmountStats["total"],
+			AverageAmount:   transactionAmountStats["average"],
 		},
-		PlatformMetrics: &models.PlatformMetrics{
-			TotalViews:     0, // TODO: 实现浏览量统计
+		PlatformMetrics: models.PlatformMetrics{
+			TotalViews:     0,
 			TodayViews:     0,
-			SearchCount:    0, // TODO: 实现搜索统计
+			SearchCount:    0,
 			ConversionRate: 0.0,
 		},
 	}
@@ -136,12 +139,18 @@ func (s *statisticsService) GetOverviewStatistics(ctx context.Context, req *map[
 }
 
 // GetPropertyStatistics 获取房产统计
-func (s *statisticsService) GetPropertyStatistics(ctx context.Context, req *models.GetPropertyStatisticsRequest) (*map[string]interface{}, error) {
+func (s *statisticsService) GetPropertyStatistics(ctx context.Context, req *models.GetPropertyStatisticsRequest) (*models.PropertyStatisticsResponse, error) {
 	// 设置默认时间范围
 	if req.StartDate == nil && req.EndDate == nil {
-		start, end := databases.GetTimeRangeForPeriod(req.Period)
-		req.StartDate = &start
-		req.EndDate = &end
+		period := "month"
+		if req.Period != nil {
+			period = *req.Period
+		}
+		start, end := databases.GetTimeRangeForPeriod(period)
+		startStr := start.Format("2006-01-02")
+		endStr := end.Format("2006-01-02")
+		req.StartDate = &startStr
+		req.EndDate = &endStr
 	}
 
 	// 汇总统计
@@ -193,7 +202,7 @@ func (s *statisticsService) GetPropertyStatistics(ctx context.Context, req *mode
 		ByBedroomCount: convertToBedroomCountStatItems(bedroomData, int(totalCount)),
 	}
 
-	return &map[string]interface{}{
+	return &models.PropertyStatisticsResponse{
 		Summary:      summary,
 		TrendData:    trendData,
 		Distribution: distribution,
@@ -201,12 +210,18 @@ func (s *statisticsService) GetPropertyStatistics(ctx context.Context, req *mode
 }
 
 // GetTransactionStatistics 获取成交统计
-func (s *statisticsService) GetTransactionStatistics(ctx context.Context, req *models.GetTransactionStatisticsRequest) (*map[string]interface{}, error) {
+func (s *statisticsService) GetTransactionStatistics(ctx context.Context, req *models.GetTransactionStatisticsRequest) (*models.TransactionStatisticsResponse, error) {
 	// 设置默认时间范围
 	if req.StartDate == nil && req.EndDate == nil {
-		start, end := databases.GetTimeRangeForPeriod(req.Period)
-		req.StartDate = &start
-		req.EndDate = &end
+		period := "month"
+		if req.Period != nil {
+			period = *req.Period
+		}
+		start, end := databases.GetTimeRangeForPeriod(period)
+		startStr := start.Format("2006-01-02")
+		endStr := end.Format("2006-01-02")
+		req.StartDate = &startStr
+		req.EndDate = &endStr
 	}
 
 	// 汇总统计
@@ -237,7 +252,7 @@ func (s *statisticsService) GetTransactionStatistics(ctx context.Context, req *m
 		ByMonth:    convertToMonthTransactionItems(trendDataRaw),
 	}
 
-	return &map[string]interface{}{
+	return &models.TransactionStatisticsResponse{
 		Summary:      summary,
 		TrendData:    trendData,
 		Distribution: distribution,
@@ -245,30 +260,40 @@ func (s *statisticsService) GetTransactionStatistics(ctx context.Context, req *m
 }
 
 // GetUserStatistics 获取用户统计
-func (s *statisticsService) GetUserStatistics(ctx context.Context, req *models.GetUserStatisticsRequest) (*map[string]interface{}, error) {
+func (s *statisticsService) GetUserStatistics(ctx context.Context, req *models.GetUserStatisticsRequest) (*models.UserStatisticsResponse, error) {
 	// 设置默认时间范围
 	if req.StartDate == nil && req.EndDate == nil {
-		start, end := databases.GetTimeRangeForPeriod(req.Period)
-		req.StartDate = &start
-		req.EndDate = &end
+		period := "month"
+		if req.Period != nil {
+			period = *req.Period
+		}
+		start, end := databases.GetTimeRangeForPeriod(period)
+		startStr := start.Format("2006-01-02")
+		endStr := end.Format("2006-01-02")
+		req.StartDate = &startStr
+		req.EndDate = &endStr
 	}
 
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	weekStart := todayStart.AddDate(0, 0, -7)
 	monthStart := todayStart.AddDate(0, -1, 0)
+	
+	todayStartStr := todayStart.Format("2006-01-02")
+	weekStartStr := weekStart.Format("2006-01-02")
+	monthStartStr := monthStart.Format("2006-01-02")
 
 	// 汇总统计
 	totalCount, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{})
 	statusMap, _ := s.repo.GetUserCountByStatus(ctx, req)
 	newToday, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &todayStart,
+		StartDate: &todayStartStr,
 	})
 	newWeek, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &weekStart,
+		StartDate: &weekStartStr,
 	})
 	newMonth, _ := s.repo.GetUserCount(ctx, &models.GetUserStatisticsRequest{
-		StartDate: &monthStart,
+		StartDate: &monthStartStr,
 	})
 
 	summary := &models.UserStatisticsSummary{
@@ -294,7 +319,7 @@ func (s *statisticsService) GetUserStatistics(ctx context.Context, req *models.G
 		ByRegistrationSource: []*models.RegistrationSourceStatItem{}, // TODO: 实现注册来源统计
 	}
 
-	return &map[string]interface{}{
+	return &models.UserStatisticsResponse{
 		Summary:      summary,
 		TrendData:    trendData,
 		Distribution: distribution,
@@ -303,10 +328,10 @@ func (s *statisticsService) GetUserStatistics(ctx context.Context, req *models.G
 
 // ========== 转换辅助函数 ==========
 
-func convertToTrendItems(data []map[string]interface{}) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToTrendItems(data []map[string]interface{}) []*models.TrendItem {
+	var items []*models.TrendItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.TrendItem{}
 		if period, ok := d["period"].(time.Time); ok {
 			item.Period = period.Format("2006-01-02")
 		} else if period, ok := d["period"].(string); ok {
@@ -323,10 +348,10 @@ func convertToTrendItems(data []map[string]interface{}) []*map[string]interface{
 	return items
 }
 
-func convertToTransactionTrendItems(data []map[string]interface{}) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToTransactionTrendItems(data []map[string]interface{}) []*models.TransactionTrendItem {
+	var items []*models.TransactionTrendItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.TransactionTrendItem{}
 		if period, ok := d["period"].(time.Time); ok {
 			item.Period = period.Format("2006-01-02")
 		} else if period, ok := d["period"].(string); ok {
@@ -336,17 +361,17 @@ func convertToTransactionTrendItems(data []map[string]interface{}) []*map[string
 			item.Count = int(count)
 		}
 		if avgAmount, ok := d["average_amount"].(float64); ok {
-			item.Value = avgAmount
+			item.AverageAmount = avgAmount
 		}
 		items = append(items, item)
 	}
 	return items
 }
 
-func convertToDistrictStatItems(data []map[string]interface{}, total int) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToDistrictStatItems(data []map[string]interface{}, total int) []*models.DistrictStatItem {
+	var items []*models.DistrictStatItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.DistrictStatItem{}
 		if id, ok := d["district_id"].(uint); ok {
 			item.DistrictID = id
 		}
@@ -367,10 +392,10 @@ func convertToDistrictStatItems(data []map[string]interface{}, total int) []*map
 	return items
 }
 
-func convertToPropertyTypeStatItems(data []map[string]interface{}, total int) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToPropertyTypeStatItems(data []map[string]interface{}, total int) []*models.PropertyTypeStatItem {
+	var items []*models.PropertyTypeStatItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.PropertyTypeStatItem{}
 		if propType, ok := d["property_type"].(string); ok {
 			item.PropertyType = propType
 		}
@@ -385,10 +410,10 @@ func convertToPropertyTypeStatItems(data []map[string]interface{}, total int) []
 	return items
 }
 
-func convertToBedroomCountStatItems(data []map[string]interface{}, total int) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToBedroomCountStatItems(data []map[string]interface{}, total int) []*models.BedroomCountStatItem {
+	var items []*models.BedroomCountStatItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.BedroomCountStatItem{}
 		if bedrooms, ok := d["bedrooms"].(int); ok {
 			item.Bedrooms = bedrooms
 		}
@@ -403,10 +428,10 @@ func convertToBedroomCountStatItems(data []map[string]interface{}, total int) []
 	return items
 }
 
-func calculatePriceRangeDistribution(priceStats map[string]float64, total int) []*map[string]interface{} {
+func calculatePriceRangeDistribution(priceStats map[string]float64, total int) []*models.PriceRangeStatItem {
 	// 简化版价格区间分布
 	// TODO: 根据实际价格数据动态计算区间
-	return []*map[string]interface{}{
+	return []*models.PriceRangeStatItem{
 		{Range: "0-1M", Count: 0, Percentage: 0},
 		{Range: "1M-2M", Count: 0, Percentage: 0},
 		{Range: "2M-5M", Count: 0, Percentage: 0},
@@ -414,10 +439,10 @@ func calculatePriceRangeDistribution(priceStats map[string]float64, total int) [
 	}
 }
 
-func convertToDistrictTransactionItems(data []map[string]interface{}) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToDistrictTransactionItems(data []map[string]interface{}) []*models.DistrictTransactionItem {
+	var items []*models.DistrictTransactionItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.DistrictTransactionItem{}
 		if id, ok := d["district_id"].(uint); ok {
 			item.DistrictID = id
 		}
@@ -438,10 +463,10 @@ func convertToDistrictTransactionItems(data []map[string]interface{}) []*map[str
 	return items
 }
 
-func convertToEstateTransactionItems(data []map[string]interface{}) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToEstateTransactionItems(data []map[string]interface{}) []*models.EstateTransactionItem {
+	var items []*models.EstateTransactionItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.EstateTransactionItem{}
 		if id, ok := d["estate_id"].(uint); ok {
 			item.EstateID = id
 		}
@@ -462,10 +487,10 @@ func convertToEstateTransactionItems(data []map[string]interface{}) []*map[strin
 	return items
 }
 
-func convertToMonthTransactionItems(data []map[string]interface{}) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToMonthTransactionItems(data []map[string]interface{}) []*models.MonthTransactionItem {
+	var items []*models.MonthTransactionItem
 	for _, d := range data {
-		item := &map[string]interface{}{}
+		item := &models.MonthTransactionItem{}
 		if period, ok := d["period"].(time.Time); ok {
 			item.Month = period.Format("2006-01")
 		} else if period, ok := d["period"].(string); ok {
@@ -485,10 +510,10 @@ func convertToMonthTransactionItems(data []map[string]interface{}) []*map[string
 	return items
 }
 
-func convertToUserRoleStatItems(roleMap map[string]int64, total int) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToUserRoleStatItems(roleMap map[string]int64, total int) []*models.UserRoleStatItem {
+	var items []*models.UserRoleStatItem
 	for role, count := range roleMap {
-		item := &map[string]interface{}{
+		item := &models.UserRoleStatItem{
 			Role:  role,
 			Count: int(count),
 		}
@@ -500,10 +525,10 @@ func convertToUserRoleStatItems(roleMap map[string]int64, total int) []*map[stri
 	return items
 }
 
-func convertToUserStatusStatItems(statusMap map[string]int64, total int) []*map[string]interface{} {
-	var items []*map[string]interface{}
+func convertToUserStatusStatItems(statusMap map[string]int64, total int) []*models.UserStatusStatItem {
+	var items []*models.UserStatusStatItem
 	for status, count := range statusMap {
-		item := &map[string]interface{}{
+		item := &models.UserStatusStatItem{
 			Status: status,
 			Count:  int(count),
 		}

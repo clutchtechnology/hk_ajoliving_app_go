@@ -13,6 +13,7 @@ import (
 	"errors"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
 
 var (
@@ -64,7 +65,7 @@ func (s *CartService) AddToCart(ctx context.Context, userID uint, req *models.Ad
 		return nil, err
 	}
 	if furniture == nil {
-		return nil, ErrFurnitureNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 验证家具是否可用

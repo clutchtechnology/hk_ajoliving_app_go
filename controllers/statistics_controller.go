@@ -83,8 +83,9 @@ func (h *StatisticsHandler) GetPropertyStatistics(c *gin.Context) {
 	}
 
 	// 设置默认周期
-	if req.Period == "" {
-		req.Period = "month"
+	if req.Period == nil {
+		defaultPeriod := "month"
+		req.Period = &defaultPeriod
 	}
 
 	data, err := h.service.GetPropertyStatistics(c.Request.Context(), &req)
@@ -122,8 +123,9 @@ func (h *StatisticsHandler) GetTransactionStatistics(c *gin.Context) {
 	}
 
 	// 设置默认周期
-	if req.Period == "" {
-		req.Period = "month"
+	if req.Period == nil {
+		defaultPeriod := "month"
+		req.Period = &defaultPeriod
 	}
 
 	data, err := h.service.GetTransactionStatistics(c.Request.Context(), &req)
@@ -158,8 +160,9 @@ func (h *StatisticsHandler) GetUserStatistics(c *gin.Context) {
 	}
 
 	// 设置默认周期
-	if req.Period == "" {
-		req.Period = "month"
+	if req.Period == nil {
+		defaultPeriod := "month"
+		req.Period = &defaultPeriod
 	}
 
 	data, err := h.service.GetUserStatistics(c.Request.Context(), &req)

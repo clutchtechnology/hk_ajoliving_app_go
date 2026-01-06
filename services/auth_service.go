@@ -23,7 +23,6 @@ import (
 var (
 	ErrUserAlreadyExists       = errors.New("user already exists")
 	ErrInvalidCredentials      = errors.New("invalid credentials")
-	ErrUserNotFound            = errors.New("user not found")
 	ErrInvalidToken            = errors.New("invalid token")
 	ErrInvalidVerificationCode = errors.New("invalid verification code")
 )
@@ -165,7 +164,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 		return nil, err
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 生成新的访问令牌
@@ -229,7 +228,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *models.ResetPasswo
 		return nil, err
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 加密新密码
@@ -273,7 +272,7 @@ func (s *AuthService) VerifyCode(ctx context.Context, req *models.VerifyCodeRequ
 		return nil, err
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return nil, tools.ErrNotFound
 	}
 	
 	return &models.VerifyCodeResponse{

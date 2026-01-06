@@ -19,10 +19,10 @@ import (
 	"time"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
 
 var (
-	ErrFurnitureNotFound    = errors.New("furniture not found")
 	ErrNotFurnitureOwner    = errors.New("you are not the owner of this furniture")
 	ErrFurnitureNoInvalid   = errors.New("furniture number already exists")
 	ErrFurnitureUnavailable = errors.New("furniture is not available")
@@ -71,7 +71,7 @@ func (s *FurnitureService) GetFurniture(ctx context.Context, id uint) (*models.F
 		return nil, err
 	}
 	if furniture == nil {
-		return nil, ErrFurnitureNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 增加浏览量
@@ -96,9 +96,8 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 
 	// 设置默认过期时间（90天后）
 	expiresAt := req.ExpiresAt
-	if expiresAt == nil {
-		expiry := time.Now().AddDate(0, 0, 90)
-		expiresAt = &expiry
+	if expiresAt.IsZero() {
+		expiresAt = time.Now().AddDate(0, 0, 90)
 	}
 
 	// 创建家具对象
@@ -120,7 +119,7 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		ViewCount:          0,
 		FavoriteCount:      0,
 		PublishedAt:        time.Now(),
-		ExpiresAt:          *expiresAt,
+		ExpiresAt:          expiresAt,
 	}
 
 	// 保存家具
@@ -133,13 +132,10 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		FurnitureNo: furniture.FurnitureNo,
 		Title:       furniture.Title,
 		Price:       furniture.Price,
-		Status:      string(furniture.Status),
+		Status:      furniture.Status,
 		PublishedAt: furniture.PublishedAt,
 		ExpiresAt:   furniture.ExpiresAt,
 	}, nil
-		PublishedAt: furniture.PublishedAt,
-		ExpiresAt:   furniture.ExpiresAt,
-		}, nil
 }
 
 // 4. UpdateFurniture 更新家具
@@ -150,7 +146,7 @@ func (s *FurnitureService) UpdateFurniture(ctx context.Context, userID uint, id 
 		return nil, err
 	}
 	if furniture == nil {
-		return nil, ErrFurnitureNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 验证权限
@@ -197,8 +193,8 @@ func (s *FurnitureService) UpdateFurniture(ctx context.Context, userID uint, id 
 	if req.DeliveryMethod != "" {
 		furniture.DeliveryMethod = req.DeliveryMethod
 	}
-	if req.ExpiresAt != nil && !req.ExpiresAt.IsZero() {
-		furniture.ExpiresAt = *req.ExpiresAt
+	if !req.ExpiresAt.IsZero() {
+		furniture.ExpiresAt = req.ExpiresAt
 	}
 
 	// 保存更新
@@ -222,7 +218,7 @@ func (s *FurnitureService) DeleteFurniture(ctx context.Context, userID uint, id 
 		return err
 	}
 	if furniture == nil {
-		return ErrFurnitureNotFound
+		return tools.ErrNotFound
 	}
 
 	// 验证权限
@@ -252,7 +248,7 @@ func (s *FurnitureService) GetFurnitureImages(ctx context.Context, id uint) ([]m
 		return nil, err
 	}
 	if furniture == nil {
-		return nil, ErrFurnitureNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	images, err := s.furnitureRepo.GetImagesByFurnitureID(ctx, id)
@@ -271,7 +267,7 @@ func (s *FurnitureService) UpdateFurnitureStatus(ctx context.Context, userID uin
 		return nil, err
 	}
 	if furniture == nil {
-		return nil, ErrFurnitureNotFound
+		return nil, tools.ErrNotFound
 	}
 
 	// 验证权限
@@ -331,30 +327,22 @@ func (s *FurnitureService) convertToListItem(f *models.Furniture) *models.Furnit
 		Price:              f.Price,
 		CategoryID:         f.CategoryID,
 		Brand:              f.Brand,
-		Condition:          string(f.Condition),
+		Condition:          f.Condition,
 		DeliveryDistrictID: f.DeliveryDistrictID,
-		DeliveryMethod:     string(f.DeliveryMethod),
-		Status:             string(f.Status),
+		DeliveryMethod:     f.DeliveryMethod,
+		Status:             f.Status,
 		ViewCount:          f.ViewCount,
 		FavoriteCount:      f.FavoriteCount,
 		PublishedAt:        f.PublishedAt,
 		ExpiresAt:          f.ExpiresAt,
-		DaysUntilExpiry:    f.GetDaysUntilExpiry(),
-	}
-
-	// 分类名称
-	if f.Category != nil {
-		item.CategoryName = f.Category.NameZhHant
-	}
-
-	// 交收地区
-	if f.DeliveryDistrict != nil {
-		item.DeliveryDistrict = f.DeliveryDistrict.NameZhHant
+		Category:           f.Category,
+		DeliveryDistrict:   f.DeliveryDistrict,
 	}
 
 	// 封面图片
 	if len(f.Images) > 0 {
-		item.CoverImage = &f.Images[0].ImageURL
+		coverImage := f.Images[0].ImageURL
+		item.Description = &coverImage
 	}
 
 	return item
@@ -370,65 +358,41 @@ func (s *FurnitureService) convertToResponse(f *models.Furniture) *models.Furnit
 		Price:              f.Price,
 		CategoryID:         f.CategoryID,
 		Brand:              f.Brand,
-		Condition:          string(f.Condition),
+		Condition:          f.Condition,
 		PurchaseDate:       f.PurchaseDate,
-		Age:                f.GetAge(),
 		DeliveryDistrictID: f.DeliveryDistrictID,
 		DeliveryTime:       f.DeliveryTime,
-		DeliveryMethod:     string(f.DeliveryMethod),
-		SupportsDelivery:   f.SupportsDelivery(),
-		SupportsSelfPickup: f.SupportsSelfPickup(),
-		Status:             string(f.Status),
+		DeliveryMethod:     f.DeliveryMethod,
+		Status:             f.Status,
 		PublisherID:        f.PublisherID,
+		PublisherType:      f.PublisherType,
 		ViewCount:          f.ViewCount,
 		FavoriteCount:      f.FavoriteCount,
 		PublishedAt:        f.PublishedAt,
 		UpdatedAt:          f.UpdatedAt,
 		ExpiresAt:          f.ExpiresAt,
-		DaysUntilExpiry:    f.GetDaysUntilExpiry(),
-		IsAvailable:        f.IsAvailable(),
-		IsExpired:          f.IsExpired(),
 		CreatedAt:          f.CreatedAt,
 	}
 
 	// 分类信息
 	if f.Category != nil {
-		resp.Category = &models.FurnitureCategory{
-			ID:         f.Category.ID,
-			ParentID:   f.Category.ParentID,
-			NameZhHant: f.Category.NameZhHant,
-			NameZhHans: f.Category.NameZhHans,
-			NameEn:     f.Category.NameEn,
-			Icon:       f.Category.Icon,
-			SortOrder:  f.Category.SortOrder,
-			IsActive:   f.Category.IsActive,
-			IsTopLevel: f.Category.IsTopLevel(),
-		}
+		resp.Category = f.Category
 	}
 
 	// 交收地区信息
 	if f.DeliveryDistrict != nil {
-		resp.DeliveryDistrict = &models.DistrictBasicResponse{
-			ID:         f.DeliveryDistrict.ID,
-			NameZhHant: f.DeliveryDistrict.NameZhHant,
-			NameZhHans: f.DeliveryDistrict.NameZhHans,
-			NameEn:     f.DeliveryDistrict.NameEn,
-		}
+		resp.DeliveryDistrict = f.DeliveryDistrict
 	}
 
 	// 发布者信息
 	if f.Publisher != nil {
-		avatar := f.Publisher.Avatar
-		resp.Publisher = &models.PublisherBasicResponse{
-			ID:            f.Publisher.ID,
-			Name:          f.Publisher.Username,
-			Avatar:        &avatar,
-			PublisherType: string(f.PublisherType),
-		}
+		resp.Publisher = f.Publisher
 	}
 
 	// 图片列表
-	resp.Images = s.convertToImageResponses(f.Images)
+	if len(f.Images) > 0 {
+		resp.Images = f.Images
+	}
 
 	return resp
 }
@@ -439,7 +403,7 @@ func (s *FurnitureService) convertToCategoryResponses(categories []*models.Furni
 	for _, c := range categories {
 		// 只返回顶级分类（带子分类）
 		if c.IsTopLevel() {
-			responses = append(responses, s.convertToCategoryResponse(c))
+			responses = append(responses, c)
 		}
 	}
 	return responses
@@ -447,38 +411,7 @@ func (s *FurnitureService) convertToCategoryResponses(categories []*models.Furni
 
 // convertToCategoryResponse 转换为分类响应
 func (s *FurnitureService) convertToCategoryResponse(c *models.FurnitureCategory) *models.FurnitureCategory {
-	resp := &models.FurnitureCategory{
-		ID:         c.ID,
-		ParentID:   c.ParentID,
-		NameZhHant: c.NameZhHant,
-		NameZhHans: c.NameZhHans,
-		NameEn:     c.NameEn,
-		Icon:       c.Icon,
-		SortOrder:  c.SortOrder,
-		IsActive:   c.IsActive,
-		IsTopLevel: c.IsTopLevel(),
-	}
-
-	// 子分类
-	if len(c.Subcategories) > 0 {
-		subcategories := make([]models.FurnitureCategory, 0, len(c.Subcategories))
-		for _, sub := range c.Subcategories {
-			subcategories = append(subcategories, models.FurnitureCategory{
-				ID:         sub.ID,
-				ParentID:   sub.ParentID,
-				NameZhHant: sub.NameZhHant,
-				NameZhHans: sub.NameZhHans,
-				NameEn:     sub.NameEn,
-				Icon:       sub.Icon,
-				SortOrder:  sub.SortOrder,
-				IsActive:   sub.IsActive,
-				IsTopLevel: sub.IsTopLevel(),
-			})
-		}
-		resp.Subcategories = subcategories
-	}
-
-	return resp
+	return c
 }
 
 // convertPointerSliceToSlice 将指针切片转换为值切片
@@ -494,14 +427,5 @@ func convertPointerSliceToSlice(images []*models.FurnitureImage) []models.Furnit
 
 // convertToImageResponses 转换为图片响应列表
 func (s *FurnitureService) convertToImageResponses(images []models.FurnitureImage) []models.FurnitureImage {
-	responses := make([]models.FurnitureImage, 0, len(images))
-	for _, img := range images {
-		responses = append(responses, models.FurnitureImage{
-			ID:        img.ID,
-			ImageURL:  img.ImageURL,
-			SortOrder: img.SortOrder,
-			IsCover:   img.IsCover,
-		})
-	}
-	return responses
+	return images
 }

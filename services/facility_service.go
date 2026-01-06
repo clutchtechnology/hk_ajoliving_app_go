@@ -74,7 +74,9 @@ func (s *FacilityService) CreateFacility(ctx context.Context, req *models.Facili
 		NameEn:     req.NameEn,
 		Icon:       req.Icon,
 		Category:   req.Category,
-	}	if err := s.repo.Create(ctx, facility); err != nil {
+	}
+	
+	if err := s.repo.Create(ctx, facility); err != nil {
 		s.logger.Error("Failed to create facility", zap.Error(err))
 		return nil, err
 	}

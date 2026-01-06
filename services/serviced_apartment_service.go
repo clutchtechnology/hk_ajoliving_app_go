@@ -127,42 +127,41 @@ func (s *servicedApartmentService) UpdateServicedApartment(ctx context.Context, 
 	}
 
 	// 更新字段
-	if req.Name != nil {
-		apartment.Name = *req.Name
+	if req.Name != "" {
+		apartment.Name = req.Name
 	}
-	if req.Description != nil {
-		apartment.Description = *req.Description
+	if req.Description != nil && *req.Description != "" {
+		apartment.Description = req.Description
 	}
-	if req.Address != nil {
-		apartment.Address = *req.Address
+	if req.Address != "" {
+		apartment.Address = req.Address
 	}
-	if req.DistrictID != nil {
-		apartment.DistrictID = *req.DistrictID
+	if req.DistrictID != 0 {
+		apartment.DistrictID = req.DistrictID
 	}
-	if req.Phone != nil {
-		apartment.Phone = *req.Phone
+	if req.Phone != "" {
+		apartment.Phone = req.Phone
 	}
-	if req.Email != nil {
-		apartment.Email = *req.Email
+	if req.Email != nil && *req.Email != "" {
+		apartment.Email = req.Email
 	}
-	if req.WebsiteURL != nil {
-		apartment.WebsiteURL = *req.WebsiteURL
+	if req.WebsiteURL != nil && *req.WebsiteURL != "" {
+		apartment.WebsiteURL = req.WebsiteURL
 	}
-	if req.CheckInTime != nil {
-		apartment.CheckInTime = *req.CheckInTime
+	if req.CheckInTime != nil && *req.CheckInTime != "" {
+		apartment.CheckInTime = req.CheckInTime
 	}
-	if req.CheckOutTime != nil {
-		apartment.CheckOutTime = *req.CheckOutTime
+	if req.CheckOutTime != nil && *req.CheckOutTime != "" {
+		apartment.CheckOutTime = req.CheckOutTime
 	}
-	if req.MinStayDays != nil {
-		apartment.MinStayDays = *req.MinStayDays
+	if req.MinStayDays != nil && *req.MinStayDays > 0 {
+		apartment.MinStayDays = req.MinStayDays
 	}
-	if req.Status != nil {
-		apartment.Status = *req.Status
+	if req.Status != "" {
+		apartment.Status = req.Status
 	}
-	if req.IsFeatured != nil {
-		apartment.IsFeatured = *req.IsFeatured
-	}
+	// IsFeatured 是 bool 类型，不需要指针检查
+	apartment.IsFeatured = req.IsFeatured
 
 	if err := s.repo.Update(ctx, apartment); err != nil {
 		s.logger.Error("failed to update serviced apartment", zap.Uint("id", id), zap.Error(err))
@@ -182,104 +181,15 @@ func (s *servicedApartmentService) DeleteServicedApartment(ctx context.Context, 
 
 // 转换为列表项响应
 func (s *servicedApartmentService) toListItemResponse(apt *models.ServicedApartment) *models.ServicedApartment {
-	resp := &models.ServicedApartment{
-		ID:           apt.ID,
-		Name:         apt.Name,
-		Address:      apt.Address,
-		DistrictName: "",
-		MinStayDays:  apt.MinStayDays,
-		Status:       apt.Status,
-		Rating:       apt.Rating,
-		ReviewCount:  apt.ReviewCount,
-		ViewCount:    apt.ViewCount,
-		IsFeatured:   apt.IsFeatured,
-		CoverImage:   "",
-	}
-
-	if apt.District != nil {
-		resp.DistrictName = apt.District.Name
-	}
-
-	if len(apt.Images) > 0 {
-		resp.CoverImage = apt.Images[0].ImageURL
-	}
-
-	// 计算价格范围
-	minPrice, maxPrice := apt.GetMinPrice()
-	resp.MinPrice = minPrice
-	resp.MaxPrice = maxPrice
-
-	return resp
+	return apt
 }
 
 // 转换为详细响应
 func (s *servicedApartmentService) toDetailResponse(apt *models.ServicedApartment) *models.ServicedApartment {
-	resp := &models.ServicedApartment{
-		ID:           apt.ID,
-		Name:         apt.Name,
-		Description:  apt.Description,
-		Address:      apt.Address,
-		DistrictID:   apt.DistrictID,
-		DistrictName: "",
-		Phone:        apt.Phone,
-		Email:        apt.Email,
-		WebsiteURL:   apt.WebsiteURL,
-		CheckInTime:  apt.CheckInTime,
-		CheckOutTime: apt.CheckOutTime,
-		MinStayDays:  apt.MinStayDays,
-		Status:       apt.Status,
-		Rating:       apt.Rating,
-		ReviewCount:  apt.ReviewCount,
-		ViewCount:    apt.ViewCount,
-		IsFeatured:   apt.IsFeatured,
-		CreatedAt:    apt.CreatedAt,
-		UpdatedAt:    apt.UpdatedAt,
-		Images:       []models.ServicedApartmentImageResponse{},
-		Facilities:   []string{},
-	}
-
-	if apt.District != nil {
-		resp.DistrictName = apt.District.Name
-	}
-
-	// 图片
-	for _, img := range apt.Images {
-		resp.Images = append(resp.Images, models.ServicedApartmentImageResponse{
-			ID:        img.ID,
-			ImageURL:  img.ImageURL,
-			ImageType: img.ImageType,
-			SortOrder: img.SortOrder,
-		})
-	}
-
-	// 设施
-	for _, facility := range apt.Facilities {
-		resp.Facilities = append(resp.Facilities, facility.Name)
-	}
-
-	// 价格范围
-	minPrice, maxPrice := apt.GetMinPrice()
-	resp.MinPrice = minPrice
-	resp.MaxPrice = maxPrice
-
-	return resp
+	return apt
 }
 
 // 转换为单元响应
 func (s *servicedApartmentService) toUnitResponse(unit *models.ServicedApartmentUnit) *models.ServicedApartmentUnit {
-	return &models.ServicedApartmentUnit{
-		ID:              unit.ID,
-		UnitType:        unit.UnitType,
-		Area:            unit.Area,
-		Bedrooms:        unit.Bedrooms,
-		Bathrooms:       unit.Bathrooms,
-		MaxOccupancy:    unit.MaxOccupancy,
-		DailyRate:       unit.DailyRate,
-		WeeklyRate:      unit.WeeklyRate,
-		MonthlyRate:     unit.MonthlyRate,
-		IsAvailable:     unit.IsAvailable,
-		AvailableFrom:   unit.AvailableFrom,
-		Features:        unit.Features,
-		FloorPlanURL:    unit.FloorPlanURL,
-	}
+	return unit
 }

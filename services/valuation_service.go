@@ -10,10 +10,10 @@ import (
 
 // ValuationService 物业估价服务接口
 type ValuationService interface {
-	ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.Estate, int64, error)
-	GetEstateValuation(ctx context.Context, estateID uint) (*models.Estate, error)
-	SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.Estate, int64, error)
-	GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) (*map[string]interface{}, error)
+	ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.ValuationListItemResponse, int64, error)
+	GetEstateValuation(ctx context.Context, estateID uint) (*models.ValuationDetailResponse, error)
+	SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.ValuationListItemResponse, int64, error)
+	GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) (*models.DistrictValuationResponse, error)
 }
 
 type valuationService struct {
@@ -28,14 +28,14 @@ func NewValuationService(repo databases.ValuationRepository, logger *zap.Logger)
 	}
 }
 
-func (s *valuationService) ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.Estate, int64, error) {
+func (s *valuationService) ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.ValuationListItemResponse, int64, error) {
 	estates, total, err := s.repo.ListValuations(ctx, req)
 	if err != nil {
 		s.logger.Error("failed to list valuations", zap.Error(err))
 		return nil, 0, tools.ErrInternalServer
 	}
 
-	result := make([]*models.Estate, 0, len(estates))
+	result := make([]*models.ValuationListItemResponse, 0, len(estates))
 	for _, estate := range estates {
 		result = append(result, s.toListItemResponse(estate))
 	}
@@ -43,7 +43,7 @@ func (s *valuationService) ListValuations(ctx context.Context, req *models.ListV
 	return result, total, nil
 }
 
-func (s *valuationService) GetEstateValuation(ctx context.Context, estateID uint) (*models.Estate, error) {
+func (s *valuationService) GetEstateValuation(ctx context.Context, estateID uint) (*models.ValuationDetailResponse, error) {
 	estate, err := s.repo.GetEstateValuation(ctx, estateID)
 	if err != nil {
 		s.logger.Error("failed to get estate valuation", zap.Uint("estate_id", estateID), zap.Error(err))
@@ -53,14 +53,14 @@ func (s *valuationService) GetEstateValuation(ctx context.Context, estateID uint
 	return s.toDetailResponse(estate), nil
 }
 
-func (s *valuationService) SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.Estate, int64, error) {
+func (s *valuationService) SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.ValuationListItemResponse, int64, error) {
 	estates, total, err := s.repo.SearchValuations(ctx, req)
 	if err != nil {
 		s.logger.Error("failed to search valuations", zap.String("keyword", req.Keyword), zap.Error(err))
 		return nil, 0, tools.ErrInternalServer
 	}
 
-	result := make([]*models.Estate, 0, len(estates))
+	result := make([]*models.ValuationListItemResponse, 0, len(estates))
 	for _, estate := range estates {
 		result = append(result, s.toListItemResponse(estate))
 	}
@@ -68,7 +68,7 @@ func (s *valuationService) SearchValuations(ctx context.Context, req *models.Sea
 	return result, total, nil
 }
 
-func (s *valuationService) GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) (*map[string]interface{}, error) {
+func (s *valuationService) GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) (*models.DistrictValuationResponse, error) {
 	// 获取地区统计数据
 	statistics, err := s.repo.GetDistrictStatistics(ctx, districtID)
 	if err != nil {
@@ -86,34 +86,34 @@ func (s *valuationService) GetDistrictValuations(ctx context.Context, districtID
 	// 构建响应
 	districtName := ""
 	if len(estates) > 0 && estates[0].District != nil {
-			districtName = estates[0].District.NameZhHant
+		districtName = estates[0].District.NameZhHant
 	}
 
-	estateList := make([]models.Estate, 0, len(estates))
+	estateList := make([]models.ValuationListItemResponse, 0, len(estates))
 	for _, estate := range estates {
 		estateList = append(estateList, *s.toListItemResponse(estate))
 	}
 
-	resp := &map[string]interface{}{
-		DistrictID:         districtID,
-		DistrictName:       districtName,
-		TotalEstates:       int(statistics["total_estates"].(int64)),
-		AvgPricePerSqft:    statistics["avg_price"].(float64),
-		MedianPricePerSqft: statistics["avg_price"].(float64), // 简化处理，使用平均值
-		MinPricePerSqft:    statistics["min_price"].(float64),
-		MaxPricePerSqft:    statistics["max_price"].(float64),
-		TotalTransactions:  int(statistics["total_transactions"].(int64)),
-		PriceTrend:         "stable", // TODO: 根据历史数据计算趋势
+	resp := &models.DistrictValuationResponse{
+		DistrictID:           districtID,
+		DistrictName:         districtName,
+		TotalEstates:         int(statistics["total_estates"].(int64)),
+		AvgPricePerSqft:      statistics["avg_price"].(float64),
+		MedianPricePerSqft:   statistics["avg_price"].(float64), // 简化处理，使用平均值
+		MinPricePerSqft:      statistics["min_price"].(float64),
+		MaxPricePerSqft:      statistics["max_price"].(float64),
+		TotalTransactions:    int(statistics["total_transactions"].(int64)),
+		PriceTrend:           "stable", // TODO: 根据历史数据计算趋势
 		PriceTrendPercentage: 0.0,
-		Estates:            estateList,
+		Estates:              estateList,
 	}
-
+	
 	return resp, nil
 }
 
 // 转换为列表项响应
-func (s *valuationService) toListItemResponse(estate *models.Estate) *models.Estate {
-	resp := &models.Estate{
+func (s *valuationService) toListItemResponse(estate *models.Estate) *models.ValuationListItemResponse {
+	resp := &models.ValuationListItemResponse{
 		EstateID:                estate.ID,
 		EstateName:              estate.Name,
 		Address:                 estate.Address,
@@ -125,7 +125,11 @@ func (s *valuationService) toListItemResponse(estate *models.Estate) *models.Est
 	}
 
 	if estate.District != nil {
-		resp.DistrictName = estate.District.Name
+		resp.DistrictName = estate.District.NameZhHant
+	}
+
+	if estate.NameEn != nil {
+		resp.EstateNameEn = *estate.NameEn
 	}
 
 	if estate.CompletionYear != nil {
@@ -142,21 +146,26 @@ func (s *valuationService) toListItemResponse(estate *models.Estate) *models.Est
 }
 
 // 转换为详细响应
-func (s *valuationService) toDetailResponse(estate *models.Estate) *models.Estate {
-	resp := &models.Estate{
+func (s *valuationService) toDetailResponse(estate *models.Estate) *models.ValuationDetailResponse {
+	resp := &models.ValuationDetailResponse{
 		EstateID:                estate.ID,
 		EstateName:              estate.Name,
 		Address:                 estate.Address,
 		DistrictID:              estate.DistrictID,
 		DistrictName:            "",
 		RecentTransactionsCount: estate.RecentTransactionsCount,
-		PriceUpdatedAt:          estate.AvgTransactionPriceUpdatedAt,
+		PriceUpdatedAt:          nil,
 		PriceTrend:              "stable", // TODO: 根据历史数据计算
 		PriceTrendPercentage:    0.0,
 	}
 
 	if estate.District != nil {
-		resp.DistrictName = estate.District.Name
+		resp.DistrictName = estate.District.NameZhHant
+	}
+
+	if estate.AvgTransactionPriceUpdatedAt != nil {
+		updatedAt := estate.AvgTransactionPriceUpdatedAt.Format("2006-01-02 15:04:05")
+		resp.PriceUpdatedAt = &updatedAt
 	}
 
 	if estate.NameEn != nil {
