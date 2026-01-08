@@ -1,106 +1,120 @@
 package services
 
-// FurnitureService Methods:
-// 0. NewFurnitureService(furnitureRepo databases.FurnitureRepository) -> 注入依赖
-// 1. ListFurniture(ctx context.Context, req *models.ListFurnitureRequest) -> 家具列表
-// 2. GetFurniture(ctx context.Context, id uint) -> 家具详情
-// 3. CreateFurniture(ctx context.Context, userID uint, req *models.Furniture) -> 创建家具
-// 4. UpdateFurniture(ctx context.Context, userID uint, id uint, req *models.Furniture) -> 更新家具
-// 5. DeleteFurniture(ctx context.Context, userID uint, id uint) -> 删除家具
-// 6. GetFurnitureCategories(ctx context.Context) -> 获取家具分类
-// 7. GetFurnitureImages(ctx context.Context, id uint) -> 获取家具图片
-// 8. UpdateFurnitureStatus(ctx context.Context, userID uint, id uint, req *models.Furniture) -> 更新家具状态
-// 9. GetFeaturedFurniture(ctx context.Context, limit int) -> 获取精选家具
-
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"gorm.io/gorm"
 )
-
-var (
-	ErrNotFurnitureOwner    = errors.New("you are not the owner of this furniture")
-	ErrFurnitureNoInvalid   = errors.New("furniture number already exists")
-	ErrFurnitureUnavailable = errors.New("furniture is not available")
-	ErrCategoryNotFound     = errors.New("category not found")
-)
-
-// FurnitureServiceInterface 家具服务接口
-type FurnitureServiceInterface interface {
-	ListFurniture(ctx context.Context, req *models.ListFurnitureRequest) ([]*models.Furniture, int64, error)
-	GetFurniture(ctx context.Context, id uint) (*models.Furniture, error)
-	CreateFurniture(ctx context.Context, userID uint, req *models.Furniture) (*models.Furniture, error)
-	UpdateFurniture(ctx context.Context, userID uint, id uint, req *models.Furniture) (*models.Furniture, error)
-	DeleteFurniture(ctx context.Context, userID uint, id uint) error
-	GetFurnitureCategories(ctx context.Context) ([]*models.FurnitureCategory, error)
-	GetFurnitureImages(ctx context.Context, id uint) ([]models.FurnitureImage, error)
-	UpdateFurnitureStatus(ctx context.Context, userID uint, id uint, req *models.Furniture) (*models.Furniture, error)
-	GetFeaturedFurniture(ctx context.Context, limit int) ([]*models.Furniture, error)
-}
 
 // FurnitureService 家具服务
 type FurnitureService struct {
-	furnitureRepo databases.FurnitureRepository
+	repo *databases.FurnitureRepo
 }
 
-// 0. NewFurnitureService 注入依赖
-func NewFurnitureService(furnitureRepo databases.FurnitureRepository) *FurnitureService {
-	return &FurnitureService{
-		furnitureRepo: furnitureRepo,
-	}
+// NewFurnitureService 创建家具服务
+func NewFurnitureService(repo *databases.FurnitureRepo) *FurnitureService {
+	return &FurnitureService{repo: repo}
 }
 
-// 1. ListFurniture 家具列表
-func (s *FurnitureService) ListFurniture(ctx context.Context, req *models.ListFurnitureRequest) ([]*models.Furniture, int64, error) {
-	furniture, total, err := s.furnitureRepo.List(ctx, req)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return s.convertToListItems(furniture), total, nil
-}
-
-// 2. GetFurniture 家具详情
-func (s *FurnitureService) GetFurniture(ctx context.Context, id uint) (*models.Furniture, error) {
-	furniture, err := s.furnitureRepo.GetByID(ctx, id)
+// ListFurniture 获取家具列表
+func (s *FurnitureService) ListFurniture(ctx context.Context, filter *models.ListFurnitureRequest) (*models.PaginatedFurnitureResponse, error) {
+	furniture, total, err := s.repo.FindAll(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	if furniture == nil {
-		return nil, tools.ErrNotFound
+
+	// 转换为响应格式
+	data := make([]models.FurnitureResponse, len(furniture))
+	for i, f := range furniture {
+		data[i] = s.toFurnitureResponse(&f)
 	}
 
-	// 增加浏览量
-	_ = s.furnitureRepo.IncrementViewCount(ctx, id)
+	totalPages := int(total) / filter.PageSize
+	if int(total)%filter.PageSize > 0 {
+		totalPages++
+	}
 
-	return s.convertToResponse(furniture), nil
+	return &models.PaginatedFurnitureResponse{
+		Data:       data,
+		Total:      total,
+		Page:       filter.Page,
+		PageSize:   filter.PageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
-// 3. CreateFurniture 创建家具
-func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req *models.Furniture) (*models.Furniture, error) {
-	// 验证分类是否存在
-	category, err := s.furnitureRepo.GetCategoryByID(ctx, req.CategoryID)
+// GetFurniture 获取家具详情
+func (s *FurnitureService) GetFurniture(ctx context.Context, id uint) (*models.FurnitureResponse, error) {
+	furniture, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
+	}
+
+	// 增加浏览次数
+	_ = s.repo.IncrementViewCount(ctx, id)
+
+	response := s.toFurnitureResponse(furniture)
+	return &response, nil
+}
+
+// GetFeaturedFurniture 获取精选家具
+func (s *FurnitureService) GetFeaturedFurniture(ctx context.Context, limit int) ([]models.FurnitureResponse, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	furniture, err := s.repo.FindFeatured(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
-	if category == nil {
-		return nil, ErrCategoryNotFound
+
+	response := make([]models.FurnitureResponse, len(furniture))
+	for i, f := range furniture {
+		response[i] = s.toFurnitureResponse(&f)
 	}
 
+	return response, nil
+}
+
+// GetFurnitureImages 获取家具图片
+func (s *FurnitureService) GetFurnitureImages(ctx context.Context, id uint) ([]models.FurnitureImage, error) {
+	// 先查询家具是否存在
+	_, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
+	}
+
+	images, err := s.repo.FindImagesByFurnitureID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return images, nil
+}
+
+// CreateFurniture 创建家具
+func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, userType string, req *models.CreateFurnitureRequest) (*models.FurnitureResponse, error) {
 	// 生成家具编号
-	furnitureNo := s.generateFurnitureNo()
-
-	// 设置默认过期时间（90天后）
-	expiresAt := req.ExpiresAt
-	if expiresAt.IsZero() {
-		expiresAt = time.Now().AddDate(0, 0, 90)
+	furnitureNo, err := s.repo.GenerateFurnitureNo(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// 创建家具对象
+	// 设置过期时间（90天后）
+	now := time.Now()
+	expiresAt := now.AddDate(0, 0, 90)
+
 	furniture := &models.Furniture{
 		FurnitureNo:        furnitureNo,
 		Title:              req.Title,
@@ -113,319 +127,218 @@ func (s *FurnitureService) CreateFurniture(ctx context.Context, userID uint, req
 		DeliveryDistrictID: req.DeliveryDistrictID,
 		DeliveryTime:       req.DeliveryTime,
 		DeliveryMethod:     req.DeliveryMethod,
-		Status:             models.FurnitureStatusAvailable,
+		Status:             "available",
 		PublisherID:        userID,
-		PublisherType:      models.PublisherType("user"),
-		ViewCount:          0,
-		FavoriteCount:      0,
-		PublishedAt:        time.Now(),
+		PublisherType:      userType,
+		PublishedAt:        now,
 		ExpiresAt:          expiresAt,
 	}
 
-	// 保存家具
-	if err := s.furnitureRepo.Create(ctx, furniture); err != nil {
+	if err := s.repo.Create(ctx, furniture); err != nil {
 		return nil, err
 	}
 
-	return &models.Furniture{
-		ID:          furniture.ID,
-		FurnitureNo: furniture.FurnitureNo,
-		Title:       furniture.Title,
-		Price:       furniture.Price,
-		Status:      furniture.Status,
-		PublishedAt: furniture.PublishedAt,
-		ExpiresAt:   furniture.ExpiresAt,
-	}, nil
-}
+	// 创建图片
+	if len(req.ImageURLs) > 0 {
+		images := make([]models.FurnitureImage, len(req.ImageURLs))
+		for i, url := range req.ImageURLs {
+			images[i] = models.FurnitureImage{
+				FurnitureID: furniture.ID,
+				ImageURL:    url,
+				IsCover:     i == 0, // 第一张为封面
+				SortOrder:   i,
+				CreatedAt:   now,
+			}
+		}
+		if err := s.repo.CreateImages(ctx, images); err != nil {
+			return nil, err
+		}
+	}
 
-// 4. UpdateFurniture 更新家具
-func (s *FurnitureService) UpdateFurniture(ctx context.Context, userID uint, id uint, req *models.Furniture) (*models.Furniture, error) {
-	// 获取家具
-	furniture, err := s.furnitureRepo.GetByID(ctx, id)
+	// 重新查询以获取完整数据
+	created, err := s.repo.FindByID(ctx, furniture.ID)
 	if err != nil {
 		return nil, err
 	}
-	if furniture == nil {
-		return nil, tools.ErrNotFound
+
+	response := s.toFurnitureResponse(created)
+	return &response, nil
+}
+
+// UpdateFurniture 更新家具
+func (s *FurnitureService) UpdateFurniture(ctx context.Context, id uint, userID uint, req *models.UpdateFurnitureRequest) (*models.FurnitureResponse, error) {
+	// 查询家具是否存在
+	furniture, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
 	}
 
-	// 验证权限
+	// 验证权限：只有发布者可以更新
 	if furniture.PublisherID != userID {
-		return nil, ErrNotFurnitureOwner
+		return nil, tools.ErrForbidden
 	}
 
 	// 更新字段
-	if req.Title != "" {
-		furniture.Title = req.Title
+	if req.Title != nil {
+		furniture.Title = *req.Title
 	}
 	if req.Description != nil {
-		furniture.Description = req.Description
+		furniture.Description = *req.Description
 	}
-	if req.Price != 0 {
-		furniture.Price = req.Price
+	if req.Price != nil {
+		furniture.Price = *req.Price
 	}
-	if req.CategoryID != 0 {
-		// 验证分类是否存在
-		category, err := s.furnitureRepo.GetCategoryByID(ctx, req.CategoryID)
-		if err != nil {
-			return nil, err
-		}
-		if category == nil {
-			return nil, ErrCategoryNotFound
-		}
-		furniture.CategoryID = req.CategoryID
+	if req.CategoryID != nil {
+		furniture.CategoryID = *req.CategoryID
 	}
 	if req.Brand != nil {
-		furniture.Brand = req.Brand
+		furniture.Brand = *req.Brand
 	}
-	if req.Condition != "" {
-		furniture.Condition = req.Condition
+	if req.Condition != nil {
+		furniture.Condition = *req.Condition
 	}
 	if req.PurchaseDate != nil {
 		furniture.PurchaseDate = req.PurchaseDate
 	}
-	if req.DeliveryDistrictID != 0 {
-		furniture.DeliveryDistrictID = req.DeliveryDistrictID
+	if req.DeliveryDistrictID != nil {
+		furniture.DeliveryDistrictID = *req.DeliveryDistrictID
 	}
 	if req.DeliveryTime != nil {
-		furniture.DeliveryTime = req.DeliveryTime
+		furniture.DeliveryTime = *req.DeliveryTime
 	}
-	if req.DeliveryMethod != "" {
-		furniture.DeliveryMethod = req.DeliveryMethod
-	}
-	if !req.ExpiresAt.IsZero() {
-		furniture.ExpiresAt = req.ExpiresAt
+	if req.DeliveryMethod != nil {
+		furniture.DeliveryMethod = *req.DeliveryMethod
 	}
 
-	// 保存更新
-	if err := s.furnitureRepo.Update(ctx, furniture); err != nil {
+	if err := s.repo.Update(ctx, furniture); err != nil {
 		return nil, err
 	}
 
-	return &models.Furniture{
-		ID:          furniture.ID,
-		FurnitureNo: furniture.FurnitureNo,
-		Title:       furniture.Title,
-		UpdatedAt:   furniture.UpdatedAt,
-		}, nil
+	// 更新图片
+	if req.ImageURLs != nil {
+		if err := s.repo.UpdateImages(ctx, id, req.ImageURLs); err != nil {
+			return nil, err
+		}
+	}
+
+	// 重新查询以获取完整数据
+	updated, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	response := s.toFurnitureResponse(updated)
+	return &response, nil
 }
 
-// 5. DeleteFurniture 删除家具
-func (s *FurnitureService) DeleteFurniture(ctx context.Context, userID uint, id uint) error {
-	// 获取家具
-	furniture, err := s.furnitureRepo.GetByID(ctx, id)
+// UpdateFurnitureStatus 更新家具状态
+func (s *FurnitureService) UpdateFurnitureStatus(ctx context.Context, id uint, userID uint, status string) error {
+	// 查询家具是否存在
+	furniture, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tools.ErrNotFound
+		}
 		return err
 	}
-	if furniture == nil {
-		return tools.ErrNotFound
-	}
 
-	// 验证权限
+	// 验证权限：只有发布者可以更新状态
 	if furniture.PublisherID != userID {
-		return ErrNotFurnitureOwner
+		return tools.ErrForbidden
 	}
 
-	// 删除家具
-	return s.furnitureRepo.Delete(ctx, id)
+	return s.repo.UpdateStatus(ctx, id, status)
 }
 
-// 6. GetFurnitureCategories 获取家具分类
-func (s *FurnitureService) GetFurnitureCategories(ctx context.Context) ([]*models.FurnitureCategory, error) {
-	categories, err := s.furnitureRepo.GetAllCategories(ctx)
+// DeleteFurniture 删除家具
+func (s *FurnitureService) DeleteFurniture(ctx context.Context, id uint, userID uint) error {
+	// 查询家具是否存在
+	furniture, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tools.ErrNotFound
+		}
+		return err
 	}
 
-	return s.convertToCategoryResponses(categories), nil
-}
-
-// 7. GetFurnitureImages 获取家具图片
-func (s *FurnitureService) GetFurnitureImages(ctx context.Context, id uint) ([]models.FurnitureImage, error) {
-	// 验证家具是否存在
-	furniture, err := s.furnitureRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if furniture == nil {
-		return nil, tools.ErrNotFound
-	}
-
-	images, err := s.furnitureRepo.GetImagesByFurnitureID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.convertToImageResponses(convertPointerSliceToSlice(images)), nil
-}
-
-// 8. UpdateFurnitureStatus 更新家具状态
-func (s *FurnitureService) UpdateFurnitureStatus(ctx context.Context, userID uint, id uint, req *models.Furniture) (*models.Furniture, error) {
-	// 获取家具
-	furniture, err := s.furnitureRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if furniture == nil {
-		return nil, tools.ErrNotFound
-	}
-
-	// 验证权限
+	// 验证权限：只有发布者可以删除
 	if furniture.PublisherID != userID {
-		return nil, ErrNotFurnitureOwner
+		return tools.ErrForbidden
 	}
 
-	// 更新状态
-	status := models.FurnitureStatus(req.Status)
-	if err := s.furnitureRepo.UpdateStatus(ctx, id, status); err != nil {
-		return nil, err
-	}
-
-	return &models.Furniture{
-		ID:        id,
-		Status:    req.Status,
-		UpdatedAt: time.Now(),
-		}, nil
+	return s.repo.Delete(ctx, id)
 }
 
-// 9. GetFeaturedFurniture 获取精选家具
-func (s *FurnitureService) GetFeaturedFurniture(ctx context.Context, limit int) ([]*models.Furniture, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-
-	furniture, err := s.furnitureRepo.GetFeatured(ctx, limit)
+// GetFurnitureCategories 获取家具分类列表
+func (s *FurnitureService) GetFurnitureCategories(ctx context.Context) ([]models.FurnitureCategoryResponse, error) {
+	categories, err := s.repo.FindAllCategories(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.convertToListItems(furniture), nil
+	response := make([]models.FurnitureCategoryResponse, len(categories))
+	for i, category := range categories {
+		response[i] = s.toCategoryResponse(ctx, &category)
+	}
+
+	return response, nil
 }
 
-// 辅助方法
-
-// generateFurnitureNo 生成家具编号
-func (s *FurnitureService) generateFurnitureNo() string {
-	return fmt.Sprintf("FUR%d%06d", time.Now().Unix(), time.Now().Nanosecond()%1000000)
+// toFurnitureResponse 转换为响应格式
+func (s *FurnitureService) toFurnitureResponse(furniture *models.Furniture) models.FurnitureResponse {
+	return models.FurnitureResponse{
+		ID:                 furniture.ID,
+		FurnitureNo:        furniture.FurnitureNo,
+		Title:              furniture.Title,
+		Description:        furniture.Description,
+		Price:              furniture.Price,
+		Category:           furniture.Category,
+		Brand:              furniture.Brand,
+		Condition:          furniture.Condition,
+		PurchaseDate:       furniture.PurchaseDate,
+		DeliveryDistrictID: furniture.DeliveryDistrictID,
+		DeliveryDistrict:   furniture.DeliveryDistrict,
+		DeliveryTime:       furniture.DeliveryTime,
+		DeliveryMethod:     furniture.DeliveryMethod,
+		Status:             furniture.Status,
+		PublisherID:        furniture.PublisherID,
+		PublisherType:      furniture.PublisherType,
+		ViewCount:          furniture.ViewCount,
+		FavoriteCount:      furniture.FavoriteCount,
+		Images:             furniture.Images,
+		PublishedAt:        furniture.PublishedAt,
+		UpdatedAt:          furniture.UpdatedAt,
+		ExpiresAt:          furniture.ExpiresAt,
+	}
 }
 
-// convertToListItems 转换为列表项响应
-func (s *FurnitureService) convertToListItems(furniture []*models.Furniture) []*models.Furniture {
-	items := make([]*models.Furniture, 0, len(furniture))
-	for _, f := range furniture {
-		items = append(items, s.convertToListItem(f))
-	}
-	return items
-}
-
-// convertToListItem 转换为列表项响应
-func (s *FurnitureService) convertToListItem(f *models.Furniture) *models.Furniture {
-	item := &models.Furniture{
-		ID:                 f.ID,
-		FurnitureNo:        f.FurnitureNo,
-		Title:              f.Title,
-		Price:              f.Price,
-		CategoryID:         f.CategoryID,
-		Brand:              f.Brand,
-		Condition:          f.Condition,
-		DeliveryDistrictID: f.DeliveryDistrictID,
-		DeliveryMethod:     f.DeliveryMethod,
-		Status:             f.Status,
-		ViewCount:          f.ViewCount,
-		FavoriteCount:      f.FavoriteCount,
-		PublishedAt:        f.PublishedAt,
-		ExpiresAt:          f.ExpiresAt,
-		Category:           f.Category,
-		DeliveryDistrict:   f.DeliveryDistrict,
+// toCategoryResponse 转换分类为响应格式
+func (s *FurnitureService) toCategoryResponse(ctx context.Context, category *models.FurnitureCategory) models.FurnitureCategoryResponse {
+	response := models.FurnitureCategoryResponse{
+		ID:         category.ID,
+		ParentID:   category.ParentID,
+		NameZhHant: category.NameZhHant,
+		NameZhHans: category.NameZhHans,
+		NameEn:     category.NameEn,
+		Icon:       category.Icon,
+		SortOrder:  category.SortOrder,
+		IsActive:   category.IsActive,
 	}
 
-	// 封面图片
-	if len(f.Images) > 0 {
-		coverImage := f.Images[0].ImageURL
-		item.Description = &coverImage
-	}
+	// 获取该分类下的家具数量
+	count, _ := s.repo.GetFurnitureCountByCategory(ctx, category.ID)
+	response.FurnitureCount = int(count)
 
-	return item
-}
-
-// convertToResponse 转换为详情响应
-func (s *FurnitureService) convertToResponse(f *models.Furniture) *models.Furniture {
-	resp := &models.Furniture{
-		ID:                 f.ID,
-		FurnitureNo:        f.FurnitureNo,
-		Title:              f.Title,
-		Description:        f.Description,
-		Price:              f.Price,
-		CategoryID:         f.CategoryID,
-		Brand:              f.Brand,
-		Condition:          f.Condition,
-		PurchaseDate:       f.PurchaseDate,
-		DeliveryDistrictID: f.DeliveryDistrictID,
-		DeliveryTime:       f.DeliveryTime,
-		DeliveryMethod:     f.DeliveryMethod,
-		Status:             f.Status,
-		PublisherID:        f.PublisherID,
-		PublisherType:      f.PublisherType,
-		ViewCount:          f.ViewCount,
-		FavoriteCount:      f.FavoriteCount,
-		PublishedAt:        f.PublishedAt,
-		UpdatedAt:          f.UpdatedAt,
-		ExpiresAt:          f.ExpiresAt,
-		CreatedAt:          f.CreatedAt,
-	}
-
-	// 分类信息
-	if f.Category != nil {
-		resp.Category = f.Category
-	}
-
-	// 交收地区信息
-	if f.DeliveryDistrict != nil {
-		resp.DeliveryDistrict = f.DeliveryDistrict
-	}
-
-	// 发布者信息
-	if f.Publisher != nil {
-		resp.Publisher = f.Publisher
-	}
-
-	// 图片列表
-	if len(f.Images) > 0 {
-		resp.Images = f.Images
-	}
-
-	return resp
-}
-
-// convertToCategoryResponses 转换为分类响应列表
-func (s *FurnitureService) convertToCategoryResponses(categories []*models.FurnitureCategory) []*models.FurnitureCategory {
-	responses := make([]*models.FurnitureCategory, 0, len(categories))
-	for _, c := range categories {
-		// 只返回顶级分类（带子分类）
-		if c.IsTopLevel() {
-			responses = append(responses, c)
+	// 处理子分类
+	if len(category.SubCategories) > 0 {
+		response.SubCategories = make([]models.FurnitureCategoryResponse, len(category.SubCategories))
+		for i, subCategory := range category.SubCategories {
+			response.SubCategories[i] = s.toCategoryResponse(ctx, &subCategory)
 		}
 	}
-	return responses
-}
 
-// convertToCategoryResponse 转换为分类响应
-func (s *FurnitureService) convertToCategoryResponse(c *models.FurnitureCategory) *models.FurnitureCategory {
-	return c
-}
-
-// convertPointerSliceToSlice 将指针切片转换为值切片
-func convertPointerSliceToSlice(images []*models.FurnitureImage) []models.FurnitureImage {
-	result := make([]models.FurnitureImage, 0, len(images))
-	for _, img := range images {
-		if img != nil {
-			result = append(result, *img)
-		}
-	}
-	return result
-}
-
-// convertToImageResponses 转换为图片响应列表
-func (s *FurnitureService) convertToImageResponses(images []models.FurnitureImage) []models.FurnitureImage {
-	return images
+	return response
 }

@@ -1,346 +1,261 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/controllers"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/middlewares"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/gin-gonic/gin"
 )
 
-// SetupRouter 设置路由
-func SetupRouter(
-	baseHandler *controllers.BaseHandler,
-	authHandler *controllers.AuthHandler,
-	userHandler *controllers.UserHandler,
-	propertyHandler *controllers.PropertyHandler,
-	newPropertyHandler *controllers.NewPropertyHandler,
-	servicedApartmentHandler *controllers.ServicedApartmentHandler,
-	estateHandler *controllers.EstateHandler,
-	valuationHandler *controllers.ValuationHandler,
-	furnitureHandler *controllers.FurnitureHandler,
-	cartHandler *controllers.CartHandler,
-	mortgageHandler *controllers.MortgageHandler,
-	newsHandler *controllers.NewsHandler,
-	schoolHandler *controllers.SchoolHandler,
-	agentHandler *controllers.AgentHandler,
-	agencyHandler *controllers.AgencyHandler,
-	priceIndexHandler *controllers.PriceIndexHandler,
-	facilityHandler *controllers.FacilityHandler,
-	searchHandler *controllers.SearchHandler,
-	statisticsHandler *controllers.StatisticsHandler,
-	configHandler *controllers.ConfigHandler,
-	jwtManager *utils.JWTManager,
-	logger *zap.Logger,
-) *gin.Engine {
-	r := gin.New()
-
-	// 全局中间件
-	r.Use(middleware.Recovery(logger))
-	r.Use(middleware.Logger(logger))
-	r.Use(middleware.CORS())
-
+// SetupRoutes 设置路由
+func SetupRoutes(
+	r *gin.Engine,
+	healthCtrl *controllers.HealthController,
+	authCtrl *controllers.AuthController,
+	userCtrl *controllers.UserController,
+	propertyCtrl *controllers.PropertyController,
+	newDevelopmentCtrl *controllers.NewDevelopmentController,
+	servicedApartmentCtrl *controllers.ServicedApartmentController,
+	estateCtrl *controllers.EstateController,
+	valuationCtrl *controllers.ValuationController,
+	furnitureCtrl *controllers.FurnitureController,
+	cartCtrl *controllers.CartController,
+	schoolNetCtrl *controllers.SchoolNetController,
+	schoolCtrl *controllers.SchoolController,
+	agentCtrl *controllers.AgentController,
+	agencyCtrl *controllers.AgencyController,
+	districtCtrl *controllers.DistrictController,
+	facilityCtrl *controllers.FacilityController,
+	searchCtrl *controllers.SearchController,
+	statisticsCtrl *controllers.StatisticsController,
+) {
 	// API v1 路由组
 	v1 := r.Group("/api/v1")
+
+	// ========== 基础路由（无需认证） ==========
+	v1.GET("/health", healthCtrl.HealthCheck)     // 健康检查
+	v1.GET("/version", healthCtrl.Version)        // 版本信息
+
+	// ========== 认证路由（无需认证） ==========
+	authGroup := v1.Group("/auth")
 	{
-		// 基础路由（无需认证）
-		v1.GET("/health", baseHandler.HealthCheck)
-		v1.GET("/version", baseHandler.Version)
+		authGroup.POST("/register", authCtrl.Register) // 用户注册
+		authGroup.POST("/login", authCtrl.Login)       // 用户登录
+		authGroup.POST("/logout", authCtrl.Logout)     // 用户登出（可选认证）
+	}
 
-		// 认证路由（无需认证）
-		auth := v1.Group("/auth")
+	// ========== 用户路由（需要认证） ==========
+	userGroup := v1.Group("/users")
+	userGroup.Use(middlewares.JWTAuth()) // 使用 JWT 认证中间件
+	{
+		userGroup.GET("/me", userCtrl.GetCurrentUser)          // 获取当前用户信息
+		userGroup.PUT("/me", userCtrl.UpdateCurrentUser)       // 更新当前用户信息
+		userGroup.GET("/me/listings", userCtrl.GetMyListings)  // 获取我的发布
+	}
+
+	// ========== 房产路由 ==========
+	propertyGroup := v1.Group("/properties")
+	{
+		// 公开接口（无需认证）
+		propertyGroup.GET("", propertyCtrl.ListProperties)                    // 房产列表
+		propertyGroup.GET("/featured", propertyCtrl.GetFeaturedProperties)    // 精选房源
+		propertyGroup.GET("/hot", propertyCtrl.GetHotProperties)              // 热门房源
+		propertyGroup.GET("/:id", propertyCtrl.GetProperty)                   // 房产详情
+		propertyGroup.GET("/:id/similar", propertyCtrl.GetSimilarProperties)  // 相似房源
+
+		// 买房分类
+		buyGroup := propertyGroup.Group("/buy")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/refresh", authHandler.RefreshToken)
-			auth.POST("/forgot-password", authHandler.ForgotPassword)
-			auth.POST("/reset-password", authHandler.ResetPassword)
-			auth.POST("/verify-code", authHandler.VerifyCode)
-			
-			// 需要认证的认证路由
-			authProtected := auth.Group("")
-			authProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				authProtected.POST("/logout", authHandler.Logout)
-			}
+			buyGroup.GET("", propertyCtrl.ListBuyProperties)                    // 买房房源列表
+			buyGroup.GET("/new", propertyCtrl.ListNewProperties)                // 新房列表
+			buyGroup.GET("/secondhand", propertyCtrl.ListSecondhandProperties)  // 二手房列表
 		}
 
-		// 用户模块（需要认证）
-		users := v1.Group("/users")
-		users.Use(middleware.JWTAuth(jwtManager))
+		// 租房分类
+		rentGroup := propertyGroup.Group("/rent")
 		{
-			users.GET("/me", userHandler.GetCurrentUser)
-			users.PUT("/me", userHandler.UpdateCurrentUser)
-			users.PUT("/me/password", userHandler.ChangePassword)
-			users.GET("/me/listings", userHandler.GetMyListings)
-			users.PUT("/me/settings", userHandler.UpdateSettings)
+			rentGroup.GET("", propertyCtrl.ListRentProperties)           // 租房房源列表
+			rentGroup.GET("/short-term", propertyCtrl.ListShortTermRent) // 短租房源
+			rentGroup.GET("/long-term", propertyCtrl.ListLongTermRent)   // 长租房源
 		}
 
-		// 房产模块
-		properties := v1.Group("/properties")
+		// 需要认证的接口
+		authenticated := propertyGroup.Group("")
+		authenticated.Use(middlewares.JWTAuth())
 		{
-			// 公开路由（无需认证）
-			properties.GET("", propertyHandler.ListProperties)
-			properties.GET("/featured", propertyHandler.GetFeaturedProperties)
-			properties.GET("/hot", propertyHandler.GetHotProperties)
-			properties.GET("/:id", propertyHandler.GetProperty)
-			properties.GET("/:id/similar", propertyHandler.GetSimilarProperties)
-			
-			// 买房相关路由
-			properties.GET("/buy", propertyHandler.ListBuyProperties)
-			properties.GET("/buy/new", propertyHandler.ListNewProperties)
-			properties.GET("/buy/secondhand", propertyHandler.ListSecondhandProperties)
-			
-			// 租房相关路由
-			properties.GET("/rent", propertyHandler.ListRentProperties)
-			properties.GET("/rent/short-term", propertyHandler.ListShortTermRent)
-			properties.GET("/rent/long-term", propertyHandler.ListLongTermRent)
-
-			// 需要认证的路由
-			propertiesProtected := properties.Group("")
-			propertiesProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				propertiesProtected.POST("", propertyHandler.CreateProperty)
-				propertiesProtected.PUT("/:id", propertyHandler.UpdateProperty)
-				propertiesProtected.DELETE("/:id", propertyHandler.DeleteProperty)
-			}
-		}
-
-		// 新楼盘模块
-		newProperties := v1.Group("/new-properties")
-		{
-			newProperties.GET("", newPropertyHandler.ListNewDevelopments)
-			newProperties.GET("/featured", newPropertyHandler.GetFeaturedNewDevelopments)
-			newProperties.GET("/:id", newPropertyHandler.GetNewDevelopment)
-			newProperties.GET("/:id/units", newPropertyHandler.GetDevelopmentUnits)
-		}
-
-		// 服务式住宅模块
-		servicedApartments := v1.Group("/serviced-apartments")
-		{
-			// 公开路由（无需认证）
-			servicedApartments.GET("", servicedApartmentHandler.ListServicedApartments)
-			servicedApartments.GET("/featured", servicedApartmentHandler.GetFeaturedApartments)
-			servicedApartments.GET("/:id", servicedApartmentHandler.GetServicedApartment)
-			servicedApartments.GET("/:id/units", servicedApartmentHandler.GetApartmentUnits)
-
-			// 需要认证的路由
-			servicedApartmentsProtected := servicedApartments.Group("")
-			servicedApartmentsProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				servicedApartmentsProtected.POST("", servicedApartmentHandler.CreateServicedApartment)
-				servicedApartmentsProtected.PUT("/:id", servicedApartmentHandler.UpdateServicedApartment)
-				servicedApartmentsProtected.DELETE("/:id", servicedApartmentHandler.DeleteServicedApartment)
-			}
-		}
-
-		// 屋苑模块
-		estates := v1.Group("/estates")
-		{
-			// 公开路由（无需认证）
-			estates.GET("", estateHandler.ListEstates)
-			estates.GET("/featured", estateHandler.GetFeaturedEstates)
-			estates.GET("/:id", estateHandler.GetEstate)
-			estates.GET("/:id/properties", estateHandler.GetEstateProperties)
-			estates.GET("/:id/statistics", estateHandler.GetEstateStatistics)
-
-			// 需要认证的路由
-			estatesProtected := estates.Group("")
-			estatesProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				estatesProtected.POST("", estateHandler.CreateEstate)
-				estatesProtected.PUT("/:id", estateHandler.UpdateEstate)
-				estatesProtected.DELETE("/:id", estateHandler.DeleteEstate)
-			}
-		}
-
-		// 物业估价模块
-		valuation := v1.Group("/valuation")
-		{
-			valuation.GET("", valuationHandler.ListValuations)
-			valuation.GET("/:estateId", valuationHandler.GetEstateValuation)
-			valuation.GET("/search", valuationHandler.SearchValuations)
-			valuation.GET("/districts/:districtId", valuationHandler.GetDistrictValuations)
-		}
-
-		// 家具商城模块
-		furniture := v1.Group("/furniture")
-		{
-			// 公开路由（无需认证）
-			furniture.GET("", furnitureHandler.ListFurniture)
-			furniture.GET("/categories", furnitureHandler.GetFurnitureCategories)
-			furniture.GET("/featured", furnitureHandler.GetFeaturedFurniture)
-			furniture.GET("/:id", furnitureHandler.GetFurniture)
-			furniture.GET("/:id/images", furnitureHandler.GetFurnitureImages)
-
-			// 需要认证的路由
-			furnitureProtected := furniture.Group("")
-			furnitureProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				furnitureProtected.POST("", furnitureHandler.CreateFurniture)
-				furnitureProtected.PUT("/:id", furnitureHandler.UpdateFurniture)
-				furnitureProtected.DELETE("/:id", furnitureHandler.DeleteFurniture)
-				furnitureProtected.PUT("/:id/status", furnitureHandler.UpdateFurnitureStatus)
-			}
-		}
-
-		// 购物车模块（需要认证）
-		cart := v1.Group("/cart")
-		cart.Use(middleware.JWTAuth(jwtManager))
-		{
-			cart.GET("", cartHandler.GetCart)
-			cart.POST("/items", cartHandler.AddToCart)
-			cart.PUT("/items/:id", cartHandler.UpdateCartItem)
-			cart.DELETE("/items/:id", cartHandler.RemoveFromCart)
-			cart.DELETE("", cartHandler.ClearCart)
-		}
-
-		// 按揭模块
-		mortgage := v1.Group("/mortgage")
-		{
-			// 公开路由（无需认证）
-			mortgage.POST("/calculate", mortgageHandler.CalculateMortgage)
-			mortgage.GET("/rates", mortgageHandler.GetMortgageRates)
-			mortgage.GET("/rates/bank/:bank_id", mortgageHandler.GetBankMortgageRate)
-			mortgage.POST("/rates/compare", mortgageHandler.CompareMortgageRates)
-
-			// 需要认证的路由
-			mortgageProtected := mortgage.Group("")
-			mortgageProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				mortgageProtected.POST("/apply", mortgageHandler.ApplyMortgage)
-				mortgageProtected.GET("/applications", mortgageHandler.GetMortgageApplications)
-				mortgageProtected.GET("/applications/:id", mortgageHandler.GetMortgageApplication)
-			}
-		}
-
-		// 新闻资讯模块（所有路由公开，无需认证）
-		news := v1.Group("/news")
-		{
-			news.GET("", newsHandler.ListNews)
-			news.GET("/categories", newsHandler.GetNewsCategories)
-			news.GET("/hot", newsHandler.GetHotNews)
-			news.GET("/featured", newsHandler.GetFeaturedNews)
-			news.GET("/latest", newsHandler.GetLatestNews)
-			news.GET("/:id", newsHandler.GetNews)
-			news.GET("/:id/related", newsHandler.GetRelatedNews)
-		}
-
-		// 校网模块（所有路由公开，无需认证）
-		schoolNets := v1.Group("/school-nets")
-		{
-			schoolNets.GET("", schoolHandler.ListSchoolNets)
-			schoolNets.GET("/search", schoolHandler.SearchSchoolNets)
-			schoolNets.GET("/:id", schoolHandler.GetSchoolNet)
-			schoolNets.GET("/:id/schools", schoolHandler.GetSchoolsInNet)
-			schoolNets.GET("/:id/properties", schoolHandler.GetPropertiesInNet)
-			schoolNets.GET("/:id/estates", schoolHandler.GetEstatesInNet)
-		}
-
-		// 学校模块（所有路由公开，无需认证）
-		schools := v1.Group("/schools")
-		{
-			schools.GET("", schoolHandler.ListSchools)
-			schools.GET("/search", schoolHandler.SearchSchools)
-			schools.GET("/:id/school-net", schoolHandler.GetSchoolNetBySchoolID)
-		}
-
-		// 代理人模块（所有路由公开，无需认证）
-		agents := v1.Group("/agents")
-		{
-			agents.GET("", agentHandler.ListAgents)
-			agents.GET("/:id", agentHandler.GetAgent)
-			agents.GET("/:id/properties", agentHandler.GetAgentProperties)
-			agents.POST("/:id/contact", agentHandler.ContactAgent)
-		}
-
-		// 代理公司模块（所有路由公开，无需认证）
-		agencies := v1.Group("/agencies")
-		{
-			agencies.GET("", agencyHandler.ListAgencies)
-			agencies.GET("/search", agencyHandler.SearchAgencies)
-			agencies.GET("/:id", agencyHandler.GetAgency)
-			agencies.GET("/:id/properties", agencyHandler.GetAgencyProperties)
-			agencies.POST("/:id/contact", agencyHandler.ContactAgency)
-		}
-
-		// 楼价指数模块
-		priceIndex := v1.Group("/price-index")
-		{
-			// 公开路由（无需认证）
-			priceIndex.GET("", priceIndexHandler.GetPriceIndex)
-			priceIndex.GET("/latest", priceIndexHandler.GetLatestPriceIndex)
-			priceIndex.GET("/districts/:districtId", priceIndexHandler.GetDistrictPriceIndex)
-			priceIndex.GET("/estates/:estateId", priceIndexHandler.GetEstatePriceIndex)
-			priceIndex.GET("/trends", priceIndexHandler.GetPriceTrends)
-			priceIndex.GET("/compare", priceIndexHandler.ComparePriceIndex)
-			priceIndex.GET("/export", priceIndexHandler.ExportPriceData)
-			priceIndex.GET("/history", priceIndexHandler.GetPriceIndexHistory)
-
-			// 需要认证的路由
-			priceIndexProtected := priceIndex.Group("")
-			priceIndexProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				priceIndexProtected.POST("", priceIndexHandler.CreatePriceIndex)
-				priceIndexProtected.PUT("/:id", priceIndexHandler.UpdatePriceIndex)
-			}
-		}
-
-		// 设施模块
-		facilities := v1.Group("/facilities")
-		{
-			// 公开路由（无需认证）
-			facilities.GET("", facilityHandler.ListFacilities)
-			facilities.GET("/:id", facilityHandler.GetFacility)
-
-			// 需要认证的路由
-			facilitiesProtected := facilities.Group("")
-			facilitiesProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				facilitiesProtected.POST("", facilityHandler.CreateFacility)
-				facilitiesProtected.PUT("/:id", facilityHandler.UpdateFacility)
-				facilitiesProtected.DELETE("/:id", facilityHandler.DeleteFacility)
-			}
-		}
-
-		// 搜索模块
-		search := v1.Group("/search")
-		{
-			// 公开路由（无需认证）
-			search.GET("", searchHandler.GlobalSearch)
-			search.GET("/properties", searchHandler.SearchProperties)
-			search.GET("/estates", searchHandler.SearchEstates)
-			search.GET("/agents", searchHandler.SearchAgents)
-			search.GET("/suggestions", searchHandler.GetSearchSuggestions)
-
-			// 需要认证的路由
-			searchProtected := search.Group("")
-			searchProtected.Use(middleware.JWTAuth(jwtManager))
-			{
-				searchProtected.GET("/history", searchHandler.GetSearchHistory)
-			}
-		}
-
-		// 统计分析模块
-		statistics := v1.Group("/statistics")
-		{
-			// 公开路由（无需认证）
-			statistics.GET("/overview", statisticsHandler.GetOverviewStatistics)
-			statistics.GET("/properties", statisticsHandler.GetPropertyStatistics)
-			statistics.GET("/transactions", statisticsHandler.GetTransactionStatistics)
-			statistics.GET("/users", statisticsHandler.GetUserStatistics)
-		}
-
-		// 系统配置模块
-		config := v1.Group("/config")
-		{
-			// 公开路由（无需认证）
-			config.GET("", configHandler.GetConfig)
-			config.GET("/regions", configHandler.GetRegions)
-			config.GET("/property-types", configHandler.GetPropertyTypes)
+			authenticated.POST("", propertyCtrl.CreateProperty)            // 创建房产
+			authenticated.PUT("/:id", propertyCtrl.UpdateProperty)         // 更新房产
+			authenticated.DELETE("/:id", propertyCtrl.DeleteProperty)      // 删除房产
 		}
 	}
 
-	return r
-}
+	// ========== 新盘路由 ==========
+	newPropertyGroup := v1.Group("/new-properties")
+	{
+		newPropertyGroup.GET("", newDevelopmentCtrl.ListNewDevelopments)         // 新盘列表
+		newPropertyGroup.GET("/:id", newDevelopmentCtrl.GetNewDevelopment)       // 新盘详情
+		newPropertyGroup.GET("/:id/layouts", newDevelopmentCtrl.GetDevelopmentLayouts) // 户型列表
+	}
 
+	// ========== 服务式住宅路由 ==========
+	servicedApartmentGroup := v1.Group("/serviced-apartments")
+	{
+		// 公开接口（无需认证）
+		servicedApartmentGroup.GET("", servicedApartmentCtrl.ListServicedApartments)          // 服务式住宅列表
+		servicedApartmentGroup.GET("/:id", servicedApartmentCtrl.GetServicedApartment)        // 服务式住宅详情
+		servicedApartmentGroup.GET("/:id/units", servicedApartmentCtrl.GetServicedApartmentUnits)   // 房型列表
+		servicedApartmentGroup.GET("/:id/images", servicedApartmentCtrl.GetServicedApartmentImages) // 图片列表
+
+		// 需要认证的接口
+		authenticated := servicedApartmentGroup.Group("")
+		authenticated.Use(middlewares.JWTAuth())
+		{
+			authenticated.POST("", servicedApartmentCtrl.CreateServicedApartment)             // 创建服务式住宅
+			authenticated.PUT("/:id", servicedApartmentCtrl.UpdateServicedApartment)          // 更新服务式住宅
+			authenticated.DELETE("/:id", servicedApartmentCtrl.DeleteServicedApartment)       // 删除服务式住宅
+		}
+	}
+
+	// ========== 屋苑路由 ==========
+	estateGroup := v1.Group("/estates")
+	{
+		// 公开接口（无需认证）
+		estateGroup.GET("", estateCtrl.ListEstates)                           // 屋苑列表
+		estateGroup.GET("/featured", estateCtrl.GetFeaturedEstates)           // 精选屋苑
+		estateGroup.GET("/:id", estateCtrl.GetEstate)                         // 屋苑详情
+		estateGroup.GET("/:id/properties", estateCtrl.GetEstateProperties)    // 屋苑内房源列表
+		estateGroup.GET("/:id/images", estateCtrl.GetEstateImages)            // 屋苑图片
+		estateGroup.GET("/:id/facilities", estateCtrl.GetEstateFacilities)    // 屋苑设施
+		estateGroup.GET("/:id/transactions", estateCtrl.GetEstateTransactions) // 屋苑成交记录
+		estateGroup.GET("/:id/statistics", estateCtrl.GetEstateStatistics)    // 屋苑统计数据
+
+		// 需要认证的接口
+		authenticated := estateGroup.Group("")
+		authenticated.Use(middlewares.JWTAuth())
+		{
+			authenticated.POST("", estateCtrl.CreateEstate)              // 创建屋苑
+			authenticated.PUT("/:id", estateCtrl.UpdateEstate)           // 更新屋苑
+			authenticated.DELETE("/:id", estateCtrl.DeleteEstate)        // 删除屋苑
+		}
+	}
+
+	// ========== 物业估价路由 ==========
+	valuationGroup := v1.Group("/valuation")
+	{
+		// 公开接口（无需认证）
+		valuationGroup.GET("", valuationCtrl.ListValuations)                           // 获取屋苑估价列表
+		valuationGroup.GET("/search", valuationCtrl.SearchValuations)                  // 搜索屋苑估价
+		valuationGroup.GET("/:estateId", valuationCtrl.GetEstateValuation)             // 获取指定屋苑估价参考
+		valuationGroup.GET("/districts/:districtId", valuationCtrl.GetDistrictValuations) // 获取地区屋苑估价列表
+	}
+
+	// ========== 家具商城路由 ==========
+	furnitureGroup := v1.Group("/furniture")
+	{
+		// 公开接口（无需认证）
+		furnitureGroup.GET("", furnitureCtrl.ListFurniture)                    // 家具列表
+		furnitureGroup.GET("/categories", furnitureCtrl.GetFurnitureCategories) // 家具分类
+		furnitureGroup.GET("/featured", furnitureCtrl.GetFeaturedFurniture)    // 精选家具
+		furnitureGroup.GET("/:id", furnitureCtrl.GetFurniture)                 // 家具详情
+		furnitureGroup.GET("/:id/images", furnitureCtrl.GetFurnitureImages)    // 家具图片
+
+		// 需要认证的接口
+		authenticated := furnitureGroup.Group("")
+		authenticated.Use(middlewares.JWTAuth())
+		{
+			authenticated.POST("", furnitureCtrl.CreateFurniture)                  // 发布家具
+			authenticated.PUT("/:id", furnitureCtrl.UpdateFurniture)               // 更新家具
+			authenticated.DELETE("/:id", furnitureCtrl.DeleteFurniture)            // 删除家具
+			authenticated.PUT("/:id/status", furnitureCtrl.UpdateFurnitureStatus)  // 更新家具状态
+		}
+	}
+
+	// ========== 购物车路由（需要认证） ==========
+	cartGroup := v1.Group("/cart")
+	cartGroup.Use(middlewares.JWTAuth())
+	{
+		cartGroup.GET("", cartCtrl.GetCart)                       // 获取购物车
+		cartGroup.DELETE("", cartCtrl.ClearCart)                  // 清空购物车
+		cartGroup.POST("/items", cartCtrl.AddToCart)             // 添加到购物车
+		cartGroup.PUT("/items/:id", cartCtrl.UpdateCartItem)     // 更新购物车项
+		cartGroup.DELETE("/items/:id", cartCtrl.RemoveFromCart)  // 移除购物车项
+	}
+
+	// ========== 校网路由（公开） ==========
+	schoolNetGroup := v1.Group("/school-nets")
+	{
+		schoolNetGroup.GET("", schoolNetCtrl.ListSchoolNets)                     // 校网列表
+		schoolNetGroup.GET("/search", schoolNetCtrl.SearchSchoolNets)            // 搜索校网
+		schoolNetGroup.GET("/:id", schoolNetCtrl.GetSchoolNet)                   // 校网详情
+		schoolNetGroup.GET("/:id/schools", schoolNetCtrl.GetSchoolsInNet)        // 校网内学校
+		schoolNetGroup.GET("/:id/properties", schoolNetCtrl.GetPropertiesInNet)  // 校网内房源
+		schoolNetGroup.GET("/:id/estates", schoolNetCtrl.GetEstatesInNet)        // 校网内屋苑
+	}
+
+	// ========== 学校路由（公开） ==========
+	schoolGroup := v1.Group("/schools")
+	{
+		schoolGroup.GET("", schoolCtrl.ListSchools)                   // 学校列表
+		schoolGroup.GET("/search", schoolCtrl.SearchSchools)          // 搜索学校
+		schoolGroup.GET("/:id", schoolCtrl.GetSchool)                 // 学校详情
+		schoolGroup.GET("/:id/school-net", schoolCtrl.GetSchoolNet)   // 获取学校所属校网
+	}
+
+	// ========== 代理人路由（公开） ==========
+	agentGroup := v1.Group("/agents")
+	{
+		agentGroup.GET("", agentCtrl.ListAgents)                     // 代理人列表
+		agentGroup.GET("/:id", agentCtrl.GetAgent)                   // 代理人详情
+		agentGroup.GET("/:id/properties", agentCtrl.GetAgentProperties) // 代理人房源列表
+		agentGroup.POST("/:id/contact", agentCtrl.ContactAgent)      // 联系代理人
+	}
+
+	// ========== 代理公司路由（公开） ==========
+	agencyGroup := v1.Group("/agencies")
+	{
+		agencyGroup.GET("/search", agencyCtrl.SearchAgencies)           // 搜索代理公司（需在 :id 前）
+		agencyGroup.GET("", agencyCtrl.ListAgencies)                    // 代理公司列表
+		agencyGroup.GET("/:id", agencyCtrl.GetAgency)                   // 代理公司详情
+		agencyGroup.GET("/:id/properties", agencyCtrl.GetAgencyProperties) // 代理公司房源列表
+		agencyGroup.POST("/:id/contact", agencyCtrl.ContactAgency)      // 联系代理公司
+	}
+
+	// ========== 地区路由（公开） ==========
+	districtGroup := v1.Group("/districts")
+	{
+		districtGroup.GET("", districtCtrl.ListDistricts)                  // 地区列表
+		districtGroup.GET("/:id", districtCtrl.GetDistrict)                // 地区详情
+		districtGroup.GET("/:id/properties", districtCtrl.GetDistrictProperties) // 地区房源
+		districtGroup.GET("/:id/estates", districtCtrl.GetDistrictEstates)       // 地区屋苑
+		districtGroup.GET("/:id/statistics", districtCtrl.GetDistrictStatistics) // 地区统计
+	}
+
+	// ========== 设施路由 ==========
+	facilityGroup := v1.Group("/facilities")
+	{
+		facilityGroup.GET("", facilityCtrl.ListFacilities)                // 设施列表（公开）
+		facilityGroup.GET("/:id", facilityCtrl.GetFacility)              // 设施详情（公开）
+		facilityGroup.POST("", middlewares.JWTAuth(), facilityCtrl.CreateFacility)   // 创建设施（需认证）
+		facilityGroup.PUT("/:id", middlewares.JWTAuth(), facilityCtrl.UpdateFacility) // 更新设施（需认证）
+		facilityGroup.DELETE("/:id", middlewares.JWTAuth(), facilityCtrl.DeleteFacility) // 删除设施（需认证）
+	}
+
+	// ========== 搜索路由（公开） ==========
+	searchGroup := v1.Group("/search")
+	{
+		searchGroup.GET("", searchCtrl.GlobalSearch)                    // 全局搜索
+		searchGroup.GET("/properties", searchCtrl.SearchProperties)     // 搜索房产
+		searchGroup.GET("/estates", searchCtrl.SearchEstates)           // 搜索屋苑
+		searchGroup.GET("/agents", searchCtrl.SearchAgents)             // 搜索代理人
+		searchGroup.GET("/suggestions", searchCtrl.GetSearchSuggestions) // 搜索建议
+		searchGroup.GET("/history", searchCtrl.GetSearchHistory)        // 搜索历史（可选认证）
+	}
+
+	// ========== 统计分析路由（公开） ==========
+	statisticsGroup := v1.Group("/statistics")
+	{
+		statisticsGroup.GET("/overview", statisticsCtrl.GetOverviewStatistics)       // 总览统计
+		statisticsGroup.GET("/properties", statisticsCtrl.GetPropertyStatistics)     // 房产统计
+		statisticsGroup.GET("/transactions", statisticsCtrl.GetTransactionStatistics) // 成交统计
+		statisticsGroup.GET("/users", statisticsCtrl.GetUserStatistics)              // 用户统计
+	}
+}

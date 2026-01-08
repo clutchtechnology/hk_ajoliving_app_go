@@ -1,177 +1,112 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
 
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/gin-gonic/gin"
 )
 
-// ServicedApartmentHandler Methods:
-// 0. NewServicedApartmentHandler(service services.ServicedApartmentService) -> 注入 ServicedApartmentService
+// ServicedApartmentController 服务式住宅控制器
+// Methods:
 // 1. ListServicedApartments(c *gin.Context) -> 获取服务式住宅列表
-// 2. GetServicedApartment(c *gin.Context) -> 获取单个服务式住宅详情
-// 3. GetApartmentUnits(c *gin.Context) -> 获取服务式住宅单元列表
-// 4. GetFeaturedApartments(c *gin.Context) -> 获取精选服务式住宅
-// 5. CreateServicedApartment(c *gin.Context) -> 创建服务式住宅（需要认证）
-// 6. UpdateServicedApartment(c *gin.Context) -> 更新服务式住宅（需要认证）
-// 7. DeleteServicedApartment(c *gin.Context) -> 删除服务式住宅（需要认证）
-
-type ServicedApartmentHandler struct {
-	service services.ServicedApartmentService
+// 2. GetServicedApartment(c *gin.Context) -> 获取服务式住宅详情
+// 3. CreateServicedApartment(c *gin.Context) -> 创建服务式住宅（需要认证）
+// 4. UpdateServicedApartment(c *gin.Context) -> 更新服务式住宅（需要认证）
+// 5. DeleteServicedApartment(c *gin.Context) -> 删除服务式住宅（需要认证）
+// 6. GetServicedApartmentUnits(c *gin.Context) -> 获取房型列表
+// 7. GetServicedApartmentImages(c *gin.Context) -> 获取图片列表
+type ServicedApartmentController struct {
+	service *services.ServicedApartmentService
 }
 
-// 0. NewServicedApartmentHandler -> 注入 ServicedApartmentService
-func NewServicedApartmentHandler(service services.ServicedApartmentService) *ServicedApartmentHandler {
-	return &ServicedApartmentHandler{service: service}
+// NewServicedApartmentController 创建服务式住宅控制器
+func NewServicedApartmentController(service *services.ServicedApartmentService) *ServicedApartmentController {
+	return &ServicedApartmentController{service: service}
 }
 
-// 1. ListServicedApartments -> 获取服务式住宅列表
+// ListServicedApartments 获取服务式住宅列表
 // @Summary 获取服务式住宅列表
-// @Description 根据筛选条件获取服务式住宅列表
 // @Tags 服务式住宅
 // @Accept json
 // @Produce json
-// @Param district_id query uint false "地区ID"
-// @Param min_price query number false "最低价格"
-// @Param max_price query number false "最高价格"
-// @Param bedrooms query int false "卧室数"
-// @Param min_stay_days query int false "最短入住天数"
-// @Param status query string false "状态(active/inactive/closed)"
+// @Param district_id query int false "地区ID"
+// @Param status query string false "状态: active, closed"
+// @Param min_rating query number false "最低评分（0-5）"
 // @Param is_featured query bool false "是否精选"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Param sort_by query string false "排序字段" default(created_at)
-// @Param sort_order query string false "排序顺序(asc/desc)" default(desc)
-// @Success 200 {object} models.Response{data=[]models.ServicedApartmentListItemResponse}
-// @Router /serviced-apartments [get]
-func (h *ServicedApartmentHandler) ListServicedApartments(c *gin.Context) {
-	var req models.ListServicedApartmentsRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
+// @Success 200 {object} tools.Response{data=models.PaginatedServicedApartmentsResponse}
+// @Router /api/v1/serviced-apartments [get]
+func (ctrl *ServicedApartmentController) ListServicedApartments(c *gin.Context) {
+	var filter models.ListServicedApartmentsRequest
+	if err := c.ShouldBindQuery(&filter); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认值
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.PageSize == 0 {
-		req.PageSize = 20
-	}
-
-	apartments, total, err := h.service.ListServicedApartments(c.Request.Context(), &req)
+	result, err := ctrl.service.ListServicedApartments(c.Request.Context(), &filter)
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.SuccessWithPagination(c, apartments, req.Page, req.PageSize, total)
+	tools.Success(c, result)
 }
 
-// 2. GetServicedApartment -> 获取单个服务式住宅详情
+// GetServicedApartment 获取服务式住宅详情
 // @Summary 获取服务式住宅详情
-// @Description 根据ID获取服务式住宅详细信息
 // @Tags 服务式住宅
 // @Accept json
 // @Produce json
 // @Param id path int true "服务式住宅ID"
-// @Success 200 {object} models.Response{data=models.ServicedApartmentResponse}
-// @Failure 404 {object} models.Response
-// @Router /serviced-apartments/{id} [get]
-func (h *ServicedApartmentHandler) GetServicedApartment(c *gin.Context) {
+// @Success 200 {object} tools.Response{data=models.ServicedApartmentDetailResponse}
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/serviced-apartments/{id} [get]
+func (ctrl *ServicedApartmentController) GetServicedApartment(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		tools.BadRequest(c, "invalid apartment id")
+		tools.BadRequest(c, "invalid serviced apartment id")
 		return
 	}
 
-	apartment, err := h.service.GetServicedApartment(c.Request.Context(), uint(id))
+	apartment, err := ctrl.service.GetServicedApartment(c.Request.Context(), uint(id))
 	if err != nil {
-		tools.NotFound(c, "serviced apartment not found")
+		tools.NotFound(c, err.Error())
 		return
 	}
 
 	tools.Success(c, apartment)
 }
 
-// 3. GetApartmentUnits -> 获取服务式住宅单元列表
-// @Summary 获取服务式住宅单元列表
-// @Description 获取指定服务式住宅的所有可用单元
-// @Tags 服务式住宅
-// @Accept json
-// @Produce json
-// @Param id path int true "服务式住宅ID"
-// @Success 200 {object} models.Response{data=[]models.ServicedApartmentUnitResponse}
-// @Failure 404 {object} models.Response
-// @Router /serviced-apartments/{id}/units [get]
-func (h *ServicedApartmentHandler) GetApartmentUnits(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		tools.BadRequest(c, "invalid apartment id")
-		return
-	}
-
-	units, err := h.service.GetApartmentUnits(c.Request.Context(), uint(id))
-	if err != nil {
-		tools.InternalError(c, err.Error())
-		return
-	}
-
-	tools.Success(c, units)
-}
-
-// 4. GetFeaturedApartments -> 获取精选服务式住宅
-// @Summary 获取精选服务式住宅
-// @Description 获取平台推荐的精选服务式住宅列表
-// @Tags 服务式住宅
-// @Accept json
-// @Produce json
-// @Param limit query int false "返回数量" default(10)
-// @Success 200 {object} models.Response{data=[]models.ServicedApartmentListItemResponse}
-// @Router /serviced-apartments/featured [get]
-func (h *ServicedApartmentHandler) GetFeaturedApartments(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 10
-	}
-
-	apartments, err := h.service.GetFeaturedApartments(c.Request.Context(), limit)
-	if err != nil {
-		tools.InternalError(c, err.Error())
-		return
-	}
-
-	tools.Success(c, apartments)
-}
-
-// 5. CreateServicedApartment -> 创建服务式住宅（需要认证）
+// CreateServicedApartment 创建服务式住宅（需要认证）
 // @Summary 创建服务式住宅
-// @Description 创建新的服务式住宅（需要管理员或公司账号权限）
 // @Tags 服务式住宅
 // @Accept json
 // @Produce json
-// @Security BearerAuth
-// @Param body body models.CreateServicedApartmentRequest true "服务式住宅信息"
-// @Success 201 {object} models.Response{data=models.ServicedApartmentResponse}
-// @Failure 400 {object} models.Response
-// @Failure 401 {object} models.Response
-// @Router /serviced-apartments [post]
-func (h *ServicedApartmentHandler) CreateServicedApartment(c *gin.Context) {
+// @Security Bearer
+// @Param request body models.CreateServicedApartmentRequest true "创建请求"
+// @Success 201 {object} tools.Response{data=models.ServicedApartmentDetailResponse}
+// @Failure 400 {object} tools.Response
+// @Failure 401 {object} tools.Response
+// @Router /api/v1/serviced-apartments [post]
+func (ctrl *ServicedApartmentController) CreateServicedApartment(c *gin.Context) {
+	// 获取当前用户ID（由JWT中间件设置）
+	userID, exists := c.Get("user_id")
+	if !exists {
+		tools.Unauthorized(c, "user not authenticated")
+		return
+	}
+
 	var req models.CreateServicedApartmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 获取当前用户ID
-	userID := c.GetUint("user_id")
-
-	apartment, err := h.service.CreateServicedApartment(c.Request.Context(), userID, &req)
+	apartment, err := ctrl.service.CreateServicedApartment(c.Request.Context(), &req, userID.(uint))
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
@@ -180,24 +115,31 @@ func (h *ServicedApartmentHandler) CreateServicedApartment(c *gin.Context) {
 	tools.Created(c, apartment)
 }
 
-// 6. UpdateServicedApartment -> 更新服务式住宅（需要认证）
+// UpdateServicedApartment 更新服务式住宅（需要认证）
 // @Summary 更新服务式住宅
-// @Description 更新服务式住宅信息（需要管理员或所有者权限）
 // @Tags 服务式住宅
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security Bearer
 // @Param id path int true "服务式住宅ID"
-// @Param body body models.UpdateServicedApartmentRequest true "更新信息"
-// @Success 200 {object} models.Response{data=models.ServicedApartmentResponse}
-// @Failure 400 {object} models.Response
-// @Failure 401 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Router /serviced-apartments/{id} [put]
-func (h *ServicedApartmentHandler) UpdateServicedApartment(c *gin.Context) {
+// @Param request body models.UpdateServicedApartmentRequest true "更新请求"
+// @Success 200 {object} tools.Response{data=models.ServicedApartmentDetailResponse}
+// @Failure 400 {object} tools.Response
+// @Failure 401 {object} tools.Response
+// @Failure 403 {object} tools.Response
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/serviced-apartments/{id} [put]
+func (ctrl *ServicedApartmentController) UpdateServicedApartment(c *gin.Context) {
+	// 获取当前用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		tools.Unauthorized(c, "user not authenticated")
+		return
+	}
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		tools.BadRequest(c, "invalid apartment id")
+		tools.BadRequest(c, "invalid serviced apartment id")
 		return
 	}
 
@@ -207,39 +149,105 @@ func (h *ServicedApartmentHandler) UpdateServicedApartment(c *gin.Context) {
 		return
 	}
 
-	apartment, err := h.service.UpdateServicedApartment(c.Request.Context(), uint(id), &req)
+	apartment, err := ctrl.service.UpdateServicedApartment(c.Request.Context(), uint(id), &req, userID.(uint))
 	if err != nil {
-		tools.InternalError(c, err.Error())
+		if err.Error() == "permission denied" {
+			tools.Forbidden(c, "you don't have permission to update this apartment")
+			return
+		}
+		tools.NotFound(c, err.Error())
 		return
 	}
 
 	tools.Success(c, apartment)
 }
 
-// 7. DeleteServicedApartment -> 删除服务式住宅（需要认证）
+// DeleteServicedApartment 删除服务式住宅（需要认证）
 // @Summary 删除服务式住宅
-// @Description 删除服务式住宅（需要管理员或所有者权限）
 // @Tags 服务式住宅
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security Bearer
 // @Param id path int true "服务式住宅ID"
-// @Success 200 {object} models.Response
-// @Failure 400 {object} models.Response
-// @Failure 401 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Router /serviced-apartments/{id} [delete]
-func (h *ServicedApartmentHandler) DeleteServicedApartment(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		tools.BadRequest(c, "invalid apartment id")
+// @Success 200 {object} tools.Response
+// @Failure 400 {object} tools.Response
+// @Failure 401 {object} tools.Response
+// @Failure 403 {object} tools.Response
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/serviced-apartments/{id} [delete]
+func (ctrl *ServicedApartmentController) DeleteServicedApartment(c *gin.Context) {
+	// 获取当前用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 
-	if err := h.service.DeleteServicedApartment(c.Request.Context(), uint(id)); err != nil {
-		tools.InternalError(c, err.Error())
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		tools.BadRequest(c, "invalid serviced apartment id")
+		return
+	}
+
+	err = ctrl.service.DeleteServicedApartment(c.Request.Context(), uint(id), userID.(uint))
+	if err != nil {
+		if err.Error() == "permission denied" {
+			tools.Forbidden(c, "you don't have permission to delete this apartment")
+			return
+		}
+		tools.NotFound(c, err.Error())
 		return
 	}
 
 	tools.Success(c, gin.H{"message": "serviced apartment deleted successfully"})
+}
+
+// GetServicedApartmentUnits 获取房型列表
+// @Summary 获取服务式住宅的房型列表
+// @Tags 服务式住宅
+// @Accept json
+// @Produce json
+// @Param id path int true "服务式住宅ID"
+// @Success 200 {object} tools.Response{data=[]models.ServicedApartmentUnit}
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/serviced-apartments/{id}/units [get]
+func (ctrl *ServicedApartmentController) GetServicedApartmentUnits(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		tools.BadRequest(c, "invalid serviced apartment id")
+		return
+	}
+
+	units, err := ctrl.service.GetServicedApartmentUnits(c.Request.Context(), uint(id))
+	if err != nil {
+		tools.NotFound(c, err.Error())
+		return
+	}
+
+	tools.Success(c, units)
+}
+
+// GetServicedApartmentImages 获取图片列表
+// @Summary 获取服务式住宅的图片列表
+// @Tags 服务式住宅
+// @Accept json
+// @Produce json
+// @Param id path int true "服务式住宅ID"
+// @Success 200 {object} tools.Response{data=[]models.ServicedApartmentImage}
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/serviced-apartments/{id}/images [get]
+func (ctrl *ServicedApartmentController) GetServicedApartmentImages(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		tools.BadRequest(c, "invalid serviced apartment id")
+		return
+	}
+
+	images, err := ctrl.service.GetServicedApartmentImages(c.Request.Context(), uint(id))
+	if err != nil {
+		tools.NotFound(c, err.Error())
+		return
+	}
+
+	tools.Success(c, images)
 }

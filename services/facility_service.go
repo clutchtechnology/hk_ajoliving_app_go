@@ -2,152 +2,193 @@ package services
 
 import (
 	"context"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"errors"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 )
 
 // FacilityService Methods:
-// 0. NewFacilityService(repo databases.FacilityRepository, logger *zap.Logger) -> 注入依赖
-// 1. ListFacilities(ctx context.Context, req *models.ListFacilitiesRequest) -> 获取设施列表
-// 2. GetFacility(ctx context.Context, id uint) -> 获取单个设施详情
-// 3. CreateFacility(ctx context.Context, req *models.Facility) -> 创建设施
-// 4. UpdateFacility(ctx context.Context, id uint, req *models.Facility) -> 更新设施信息
+// 0. NewFacilityService(repo *databases.FacilityRepo) -> 注入依赖
+// 1. ListFacilities(ctx context.Context, category string) -> 获取设施列表
+// 2. GetFacility(ctx context.Context, id uint) -> 获取设施详情
+// 3. CreateFacility(ctx context.Context, req *models.CreateFacilityRequest) -> 创建设施
+// 4. UpdateFacility(ctx context.Context, id uint, req *models.UpdateFacilityRequest) -> 更新设施
 // 5. DeleteFacility(ctx context.Context, id uint) -> 删除设施
 
-// FacilityServiceInterface 定义设施服务接口
-type FacilityServiceInterface interface {
-	ListFacilities(ctx context.Context, req *models.ListFacilitiesRequest) ([]*models.Facility, int64, error)
-	GetFacility(ctx context.Context, id uint) (*models.Facility, error)
-	CreateFacility(ctx context.Context, req *models.Facility) (*models.Facility, error)
-	UpdateFacility(ctx context.Context, id uint, req *models.Facility) (*models.Facility, error)
-	DeleteFacility(ctx context.Context, id uint) error
-}
-
-// FacilityService 设施服务
 type FacilityService struct {
-	repo   databases.FacilityRepository
-	logger *zap.Logger
+	repo *databases.FacilityRepo
 }
 
 // 0. NewFacilityService 构造函数
-func NewFacilityService(repo databases.FacilityRepository, logger *zap.Logger) *FacilityService {
-	return &FacilityService{
-		repo:   repo,
-		logger: logger,
-	}
+func NewFacilityService(repo *databases.FacilityRepo) *FacilityService {
+	return &FacilityService{repo: repo}
 }
 
 // 1. ListFacilities 获取设施列表
-func (s *FacilityService) ListFacilities(ctx context.Context, req *models.ListFacilitiesRequest) ([]*models.Facility, int64, error) {
-	facilities, total, err := s.repo.List(ctx, req)
+func (s *FacilityService) ListFacilities(ctx context.Context, category string) ([]models.FacilityResponse, error) {
+	facilities, err := s.repo.FindAll(ctx, category)
 	if err != nil {
-		s.logger.Error("Failed to list facilities", zap.Error(err))
-		return nil, 0, err
-	}
-
-	// 直接返回设施列表
-	return facilities, total, nil
-}
-
-// 2. GetFacility 获取单个设施详情
-func (s *FacilityService) GetFacility(ctx context.Context, id uint) (*models.Facility, error) {
-	facility, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, pkgErrors.ErrNotFound
-		}
-		s.logger.Error("Failed to get facility", zap.Error(err), zap.Uint("id", id))
 		return nil, err
 	}
 
-	return convertToFacilityDetailResponse(facility), nil
+	var responses []models.FacilityResponse
+	for _, facility := range facilities {
+		responses = append(responses, models.FacilityResponse{
+			ID:         facility.ID,
+			NameZhHant: facility.NameZhHant,
+			NameZhHans: facility.NameZhHans,
+			NameEn:     facility.NameEn,
+			Icon:       facility.Icon,
+			Category:   facility.Category,
+			SortOrder:  facility.SortOrder,
+			CreatedAt:  facility.CreatedAt,
+			UpdatedAt:  facility.UpdatedAt,
+		})
+	}
+
+	return responses, nil
+}
+
+// 2. GetFacility 获取设施详情
+func (s *FacilityService) GetFacility(ctx context.Context, id uint) (*models.FacilityResponse, error) {
+	facility, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, tools.ErrNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &models.FacilityResponse{
+		ID:         facility.ID,
+		NameZhHant: facility.NameZhHant,
+		NameZhHans: facility.NameZhHans,
+		NameEn:     facility.NameEn,
+		Icon:       facility.Icon,
+		Category:   facility.Category,
+		SortOrder:  facility.SortOrder,
+		CreatedAt:  facility.CreatedAt,
+		UpdatedAt:  facility.UpdatedAt,
+	}, nil
 }
 
 // 3. CreateFacility 创建设施
-func (s *FacilityService) CreateFacility(ctx context.Context, req *models.Facility) (*models.Facility, error) {
-		facility := &models.Facility{
+func (s *FacilityService) CreateFacility(ctx context.Context, req *models.CreateFacilityRequest) (*models.FacilityResponse, error) {
+	// 检查名称是否已存在
+	exists, err := s.repo.CheckNameExists(ctx, req.NameZhHant, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("facility name already exists")
+	}
+
+	facility := &models.Facility{
 		NameZhHant: req.NameZhHant,
 		NameZhHans: req.NameZhHans,
 		NameEn:     req.NameEn,
 		Icon:       req.Icon,
 		Category:   req.Category,
+		SortOrder:  req.SortOrder,
 	}
-	
+
 	if err := s.repo.Create(ctx, facility); err != nil {
-		s.logger.Error("Failed to create facility", zap.Error(err))
 		return nil, err
 	}
 
-	s.logger.Info("Facility created successfully", zap.Uint("id", facility.ID))
-	return convertToFacilityDetailResponse(facility), nil
+	return &models.FacilityResponse{
+		ID:         facility.ID,
+		NameZhHant: facility.NameZhHant,
+		NameZhHans: facility.NameZhHans,
+		NameEn:     facility.NameEn,
+		Icon:       facility.Icon,
+		Category:   facility.Category,
+		SortOrder:  facility.SortOrder,
+		CreatedAt:  facility.CreatedAt,
+		UpdatedAt:  facility.UpdatedAt,
+	}, nil
 }
 
-// 4. UpdateFacility 更新设施信息
-func (s *FacilityService) UpdateFacility(ctx context.Context, id uint, req *models.Facility) (*models.Facility, error) {
-	// 检查设施是否存在
-	facility, err := s.repo.GetByID(ctx, id)
+// 4. UpdateFacility 更新设施
+func (s *FacilityService) UpdateFacility(ctx context.Context, id uint, req *models.UpdateFacilityRequest) (*models.FacilityResponse, error) {
+	// 验证设施存在
+	facility, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, pkgErrors.ErrNotFound
+		if errors.Is(err, tools.ErrNotFound) {
+			return nil, tools.ErrNotFound
 		}
-		s.logger.Error("Failed to get facility", zap.Error(err), zap.Uint("id", id))
 		return nil, err
 	}
 
-	// 更新字段
-	if req.NameZhHant != "" {
-		facility.NameZhHant = req.NameZhHant
+	// 检查名称是否重复（如果要更新名称）
+	if req.NameZhHant != nil && *req.NameZhHant != facility.NameZhHant {
+		exists, err := s.repo.CheckNameExists(ctx, *req.NameZhHant, id)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, errors.New("facility name already exists")
+		}
+	}
+
+	// 构建更新数据
+	updates := make(map[string]interface{})
+	if req.NameZhHant != nil {
+		updates["name_zh_hant"] = *req.NameZhHant
 	}
 	if req.NameZhHans != nil {
-		facility.NameZhHans = req.NameZhHans
+		updates["name_zh_hans"] = *req.NameZhHans
 	}
 	if req.NameEn != nil {
-		facility.NameEn = req.NameEn
+		updates["name_en"] = *req.NameEn
 	}
 	if req.Icon != nil {
-		facility.Icon = req.Icon
+		updates["icon"] = *req.Icon
 	}
-	if req.Category != "" {
-		facility.Category = req.Category
+	if req.Category != nil {
+		updates["category"] = *req.Category
 	}
-	if req.SortOrder != 0 {
-		facility.SortOrder = req.SortOrder
+	if req.SortOrder != nil {
+		updates["sort_order"] = *req.SortOrder
 	}
 
-	if err := s.repo.Update(ctx, facility); err != nil {
-		s.logger.Error("Failed to update facility", zap.Error(err), zap.Uint("id", id))
+	if len(updates) > 0 {
+		if err := s.repo.Update(ctx, id, updates); err != nil {
+			return nil, err
+		}
+	}
+
+	// 重新查询返回最新数据
+	updatedFacility, err := s.repo.FindByID(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	s.logger.Info("Facility updated successfully", zap.Uint("id", id))
-	return convertToFacilityDetailResponse(facility), nil
+	return &models.FacilityResponse{
+		ID:         updatedFacility.ID,
+		NameZhHant: updatedFacility.NameZhHant,
+		NameZhHans: updatedFacility.NameZhHans,
+		NameEn:     updatedFacility.NameEn,
+		Icon:       updatedFacility.Icon,
+		Category:   updatedFacility.Category,
+		SortOrder:  updatedFacility.SortOrder,
+		CreatedAt:  updatedFacility.CreatedAt,
+		UpdatedAt:  updatedFacility.UpdatedAt,
+	}, nil
 }
 
 // 5. DeleteFacility 删除设施
 func (s *FacilityService) DeleteFacility(ctx context.Context, id uint) error {
-	// 检查设施是否存在
-	exists, err := s.repo.ExistsByID(ctx, id)
+	// 验证设施存在
+	_, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		s.logger.Error("Failed to check facility existence", zap.Error(err), zap.Uint("id", id))
-		return err
-	}
-	if !exists {
-		return pkgErrors.ErrNotFound
-	}
-
-	if err := s.repo.Delete(ctx, id); err != nil {
-		s.logger.Error("Failed to delete facility", zap.Error(err), zap.Uint("id", id))
+		if errors.Is(err, tools.ErrNotFound) {
+			return tools.ErrNotFound
+		}
 		return err
 	}
 
-	s.logger.Info("Facility deleted successfully", zap.Uint("id", id))
-	return nil
-}
-
-// convertToFacilityDetailResponse 将 Facility 模型转换为响应格式
-func convertToFacilityDetailResponse(facility *models.Facility) *models.Facility {
-	return facility
+	return s.repo.Delete(ctx, id)
 }

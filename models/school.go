@@ -6,68 +6,64 @@ import (
 	"gorm.io/gorm"
 )
 
-// SchoolNet 校网
+// ============ GORM Model ============
+
+// SchoolNet 校网模型
 type SchoolNet struct {
 	ID          uint           `gorm:"primaryKey" json:"id"`
-	NetCode     string         `gorm:"size:50;uniqueIndex;not null" json:"net_code"`     // 校网编号
-	NameZhHant  string         `gorm:"size:200;not null" json:"name_zh_hant"`            // 繁体中文名
-	NameZhHans  string         `gorm:"size:200;not null" json:"name_zh_hans"`            // 简体中文名
-	NameEn      string         `gorm:"size:200;not null" json:"name_en"`                 // 英文名
-	DistrictID  uint           `gorm:"index;not null" json:"district_id"`                // 所属地区ID
-	Description string         `gorm:"type:text" json:"description"`                     // 描述
-	Level       string         `gorm:"size:20;index" json:"level"`                       // 学校级别: primary, secondary
-	SchoolCount int            `gorm:"default:0" json:"school_count"`                    // 学校数量
-	MapData     string         `gorm:"type:text" json:"map_data"`                        // 地图数据（JSON格式）
-	IsActive    bool           `gorm:"default:true;index" json:"is_active"`              // 是否启用
+	Code        string         `gorm:"size:50;uniqueIndex;not null" json:"code"`        // 校网编号（如：11, 12, 34）
+	NameZhHant  string         `gorm:"size:200;not null;index" json:"name_zh_hant"`     // 中文繁体名称
+	NameZhHans  string         `gorm:"size:200" json:"name_zh_hans,omitempty"`          // 中文简体名称
+	NameEn      string         `gorm:"size:200" json:"name_en,omitempty"`               // 英文名称
+	Type        string         `gorm:"size:20;not null;index" json:"type"`              // primary=小学, secondary=中学
+	DistrictID  uint           `gorm:"not null;index" json:"district_id"`               // 所属地区ID
+	Description string         `gorm:"type:text" json:"description,omitempty"`          // 校网描述
+	Coverage    string         `gorm:"type:text" json:"coverage,omitempty"`             // 覆盖范围说明
+	SchoolCount int            `gorm:"default:0" json:"school_count"`                   // 校网内学校数量
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
-	
+
 	// 关联
-	District    *District      `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
-	Schools     []School       `gorm:"foreignKey:SchoolNetID" json:"schools,omitempty"`
+	District *District `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
+	Schools  []School  `gorm:"foreignKey:SchoolNetID" json:"schools,omitempty"`
 }
 
 func (SchoolNet) TableName() string {
 	return "school_nets"
 }
 
-// School 学校
+// School 学校模型
 type School struct {
-	ID           uint           `gorm:"primaryKey" json:"id"`
-	SchoolNetID  uint           `gorm:"index;not null" json:"school_net_id"`              // 校网ID
-	DistrictID   uint           `gorm:"index;not null" json:"district_id"`                // 所属地区ID
-	NameZhHant   string         `gorm:"size:200;not null;index" json:"name_zh_hant"`      // 繁体中文名
-	NameZhHans   string         `gorm:"size:200;not null" json:"name_zh_hans"`            // 简体中文名
-	NameEn       string         `gorm:"size:200;not null" json:"name_en"`                 // 英文名
-	SchoolCode   string         `gorm:"size:50;uniqueIndex" json:"school_code"`           // 学校编号
-	Category     string         `gorm:"size:50;index" json:"category"`                    // 类别: government, aided, direct_subsidy, private, international
-	Level        string         `gorm:"size:20;index" json:"level"`                       // 级别: kindergarten, primary, secondary
-	Gender       string         `gorm:"size:20" json:"gender"`                            // 性别: co-ed, boys, girls
-	Religion     string         `gorm:"size:50" json:"religion"`                          // 宗教
-	Address      string         `gorm:"size:500" json:"address"`                          // 地址
-	Phone        string         `gorm:"size:50" json:"phone"`                             // 电话
-	Email        string         `gorm:"size:200" json:"email"`                            // 邮箱
-	Website      string         `gorm:"size:500" json:"website"`                          // 网站
-	Principal    string         `gorm:"size:100" json:"principal"`                        // 校长
-	FoundedYear  int            `json:"founded_year"`                                     // 成立年份
-	StudentCount int            `gorm:"default:0" json:"student_count"`                   // 学生人数
-	TeacherCount int            `gorm:"default:0" json:"teacher_count"`                   // 教师人数
-	Rating       float64        `gorm:"type:decimal(3,2);default:0" json:"rating"`        // 评分
-	Features     string         `gorm:"type:text" json:"features"`                        // 特色（JSON数组）
-	Facilities   string         `gorm:"type:text" json:"facilities"`                      // 设施（JSON数组）
-	Latitude     float64        `gorm:"type:decimal(10,8)" json:"latitude"`               // 纬度
-	Longitude    float64        `gorm:"type:decimal(11,8)" json:"longitude"`              // 经度
-	LogoURL      string         `gorm:"size:500" json:"logo_url"`                         // Logo图片
-	CoverImageURL string        `gorm:"size:500" json:"cover_image_url"`                  // 封面图片
-	IsActive     bool           `gorm:"default:true;index" json:"is_active"`              // 是否启用
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
-	
+	ID            uint           `gorm:"primaryKey" json:"id"`
+	NameZhHant    string         `gorm:"size:200;not null;index" json:"name_zh_hant"`      // 中文繁体名称
+	NameZhHans    string         `gorm:"size:200" json:"name_zh_hans,omitempty"`           // 中文简体名称
+	NameEn        string         `gorm:"size:200;index" json:"name_en,omitempty"`          // 英文名称
+	Type          string         `gorm:"size:20;not null;index" json:"type"`               // primary=小学, secondary=中学
+	Category      string         `gorm:"size:50;not null;index" json:"category"`           // government=官立, aided=资助, direct_subsidy=直资, private=私立, international=国际
+	Gender        string         `gorm:"size:20;not null" json:"gender"`                   // coed=男女校, boys=男校, girls=女校
+	SchoolNetID   uint           `gorm:"index" json:"school_net_id"`                       // 所属校网ID（可选，某些学校不在校网内）
+	DistrictID    uint           `gorm:"not null;index" json:"district_id"`                // 所属地区ID
+	Address       string         `gorm:"size:500;not null" json:"address"`                 // 学校地址
+	Phone         string         `gorm:"size:50" json:"phone,omitempty"`                   // 联系电话
+	Email         string         `gorm:"size:255" json:"email,omitempty"`                  // 电子邮件
+	Website       string         `gorm:"size:500" json:"website,omitempty"`                // 学校网站
+	EstablishedAt *time.Time     `json:"established_at,omitempty"`                         // 创校年份
+	Principal     string         `gorm:"size:100" json:"principal,omitempty"`              // 校长姓名
+	Religion      string         `gorm:"size:50" json:"religion,omitempty"`                // 宗教背景（如：基督教、天主教、佛教等）
+	Curriculum    string         `gorm:"size:100" json:"curriculum,omitempty"`             // 课程类型（如：本地、IB、英式等）
+	StudentCount  int            `gorm:"default:0" json:"student_count"`                   // 学生人数
+	TeacherCount  int            `gorm:"default:0" json:"teacher_count"`                   // 教师人数
+	Rating        float64        `gorm:"type:decimal(3,2)" json:"rating"`                  // 评分（0-5）
+	Description   string         `gorm:"type:text" json:"description,omitempty"`           // 学校简介
+	ViewCount     int            `gorm:"default:0" json:"view_count"`                      // 浏览次数
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+
 	// 关联
-	SchoolNet   *SchoolNet     `gorm:"foreignKey:SchoolNetID" json:"school_net,omitempty"`
-	District    *District      `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
+	SchoolNet *SchoolNet `gorm:"foreignKey:SchoolNetID" json:"school_net,omitempty"`
+	District  *District  `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
 }
 
 func (School) TableName() string {
@@ -76,101 +72,116 @@ func (School) TableName() string {
 
 // ============ Request DTO ============
 
-// ListSchoolNetsRequest 获取校网列表请求
+// ListSchoolNetsRequest 校网列表请求
 type ListSchoolNetsRequest struct {
+	Type       *string `form:"type" binding:"omitempty,oneof=primary secondary"`
 	DistrictID *uint   `form:"district_id"`
-	Level      *string `form:"level" binding:"omitempty,oneof=primary secondary"`
-	Keyword    *string `form:"keyword"`
+	Keyword    string  `form:"keyword"`
 	Page       int     `form:"page,default=1" binding:"min=1"`
-	PageSize   int     `form:"page_size,default=50" binding:"min=1,max=100"`
-	SortBy     string  `form:"sort_by,default=name_zh_hant"`
-	SortOrder  string  `form:"sort_order,default=asc" binding:"omitempty,oneof=asc desc"`
+	PageSize   int     `form:"page_size,default=20" binding:"min=1,max=100"`
 }
 
-// ListSchoolsRequest 获取学校列表请求
+// ListSchoolsRequest 学校列表请求
 type ListSchoolsRequest struct {
+	Type        *string `form:"type" binding:"omitempty,oneof=primary secondary"`
+	Category    *string `form:"category" binding:"omitempty,oneof=government aided direct_subsidy private international"`
+	Gender      *string `form:"gender" binding:"omitempty,oneof=coed boys girls"`
 	SchoolNetID *uint   `form:"school_net_id"`
 	DistrictID  *uint   `form:"district_id"`
-	Level       *string `form:"level" binding:"omitempty,oneof=kindergarten primary secondary"`
-	Category    *string `form:"category"`
-	Gender      *string `form:"gender" binding:"omitempty,oneof=co-ed boys girls"`
-	Religion    *string `form:"religion"`
-	Keyword     *string `form:"keyword"`
+	Keyword     string  `form:"keyword"`
 	Page        int     `form:"page,default=1" binding:"min=1"`
-	PageSize    int     `form:"page_size,default=50" binding:"min=1,max=100"`
-	SortBy      string  `form:"sort_by,default=name_zh_hant"`
-	SortOrder   string  `form:"sort_order,default=asc" binding:"omitempty,oneof=asc desc"`
+	PageSize    int     `form:"page_size,default=20" binding:"min=1,max=100"`
 }
 
-// 学校级别常量
-const (
-	SchoolLevelKindergarten = "kindergarten" // 幼儿园
-	SchoolLevelPrimary      = "primary"      // 小学
-	SchoolLevelSecondary    = "secondary"    // 中学
-)
+// ============ Response DTO ============
 
-// 学校类别常量
-const (
-	SchoolCategoryGovernment     = "government"      // 官立
-	SchoolCategoryAided          = "aided"           // 资助
-	SchoolCategoryDirectSubsidy  = "direct_subsidy"  // 直资
-	SchoolCategoryPrivate        = "private"         // 私立
-	SchoolCategoryInternational  = "international"   // 国际
-)
-
-// 性别常量
-const (
-	SchoolGenderCoEd = "co-ed" // 男女校
-	SchoolGenderBoys = "boys"  // 男校
-	SchoolGenderGirls = "girls" // 女校
-)
-
-// 辅助方法
-
-// IsPrimary 是否小学
-func (s *School) IsPrimary() bool {
-	return s.Level == SchoolLevelPrimary
+// SchoolNetResponse 校网响应
+type SchoolNetResponse struct {
+	ID          uint   `json:"id"`
+	Code        string `json:"code"`
+	NameZhHant  string `json:"name_zh_hant"`
+	NameZhHans  string `json:"name_zh_hans,omitempty"`
+	NameEn      string `json:"name_en,omitempty"`
+	Type        string `json:"type"`
+	DistrictID  uint   `json:"district_id"`
+	Description string `json:"description,omitempty"`
+	Coverage    string `json:"coverage,omitempty"`
+	SchoolCount int    `json:"school_count"`
 }
 
-// IsSecondary 是否中学
-func (s *School) IsSecondary() bool {
-	return s.Level == SchoolLevelSecondary
+// SchoolNetDetailResponse 校网详情响应
+type SchoolNetDetailResponse struct {
+	ID          uint              `json:"id"`
+	Code        string            `json:"code"`
+	NameZhHant  string            `json:"name_zh_hant"`
+	NameZhHans  string            `json:"name_zh_hans,omitempty"`
+	NameEn      string            `json:"name_en,omitempty"`
+	Type        string            `json:"type"`
+	DistrictID  uint              `json:"district_id"`
+	Description string            `json:"description,omitempty"`
+	Coverage    string            `json:"coverage,omitempty"`
+	SchoolCount int               `json:"school_count"`
+	District    *DistrictResponse `json:"district,omitempty"`
 }
 
-// IsGovernmentSchool 是否官立学校
-func (s *School) IsGovernmentSchool() bool {
-	return s.Category == SchoolCategoryGovernment
+// SchoolResponse 学校响应
+type SchoolResponse struct {
+	ID           uint    `json:"id"`
+	NameZhHant   string  `json:"name_zh_hant"`
+	NameZhHans   string  `json:"name_zh_hans,omitempty"`
+	NameEn       string  `json:"name_en,omitempty"`
+	Type         string  `json:"type"`
+	Category     string  `json:"category"`
+	Gender       string  `json:"gender"`
+	SchoolNetID  uint    `json:"school_net_id,omitempty"`
+	DistrictID   uint    `json:"district_id"`
+	Address      string  `json:"address"`
+	Rating       float64 `json:"rating"`
+	StudentCount int     `json:"student_count"`
 }
 
-// HasLocation 是否有位置信息
-func (s *School) HasLocation() bool {
-	return s.Latitude != 0 && s.Longitude != 0
+// SchoolDetailResponse 学校详情响应
+type SchoolDetailResponse struct {
+	ID            uint                 `json:"id"`
+	NameZhHant    string               `json:"name_zh_hant"`
+	NameZhHans    string               `json:"name_zh_hans,omitempty"`
+	NameEn        string               `json:"name_en,omitempty"`
+	Type          string               `json:"type"`
+	Category      string               `json:"category"`
+	Gender        string               `json:"gender"`
+	SchoolNetID   uint                 `json:"school_net_id,omitempty"`
+	DistrictID    uint                 `json:"district_id"`
+	Address       string               `json:"address"`
+	Phone         string               `json:"phone,omitempty"`
+	Email         string               `json:"email,omitempty"`
+	Website       string               `json:"website,omitempty"`
+	EstablishedAt *time.Time           `json:"established_at,omitempty"`
+	Principal     string               `json:"principal,omitempty"`
+	Religion      string               `json:"religion,omitempty"`
+	Curriculum    string               `json:"curriculum,omitempty"`
+	StudentCount  int                  `json:"student_count"`
+	TeacherCount  int                  `json:"teacher_count"`
+	Rating        float64              `json:"rating"`
+	Description   string               `json:"description,omitempty"`
+	ViewCount     int                  `json:"view_count"`
+	SchoolNet     *SchoolNetResponse   `json:"school_net,omitempty"`
+	District      *DistrictResponse    `json:"district,omitempty"`
 }
 
-// GetCategoryName 获取类别名称
-func (s *School) GetCategoryName() string {
-	categoryNames := map[string]string{
-		SchoolCategoryGovernment:    "官立",
-		SchoolCategoryAided:         "资助",
-		SchoolCategoryDirectSubsidy: "直资",
-		SchoolCategoryPrivate:       "私立",
-		SchoolCategoryInternational: "国际",
-	}
-	if name, ok := categoryNames[s.Category]; ok {
-		return name
-	}
-	return s.Category
+// PaginatedSchoolNetsResponse 分页校网响应
+type PaginatedSchoolNetsResponse struct {
+	Items      []*SchoolNetResponse `json:"items"`
+	Total      int64                `json:"total"`
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"page_size"`
+	TotalPages int                  `json:"total_pages"`
 }
 
-// GetLevelName 获取级别名称
-func (s *School) GetLevelName() string {
-	levelNames := map[string]string{
-		SchoolLevelKindergarten: "幼儿园",
-		SchoolLevelPrimary:      "小学",
-		SchoolLevelSecondary:    "中学",
-	}
-	if name, ok := levelNames[s.Level]; ok {
-		return name
-	}
-	return s.Level
+// PaginatedSchoolsResponse 分页学校响应
+type PaginatedSchoolsResponse struct {
+	Items      []*SchoolResponse `json:"items"`
+	Total      int64             `json:"total"`
+	Page       int               `json:"page"`
+	PageSize   int               `json:"page_size"`
+	TotalPages int               `json:"total_pages"`
 }

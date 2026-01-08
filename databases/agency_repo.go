@@ -2,277 +2,176 @@ package databases
 
 import (
 	"context"
-	"gorm.io/gorm"
+	"fmt"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"gorm.io/gorm"
 )
 
-// AgencyRepository 代理公司数据访问接口
-type AgencyRepository interface {
-	// 代理公司相关
-	List(ctx context.Context, filter *models.ListAgenciesRequest) ([]*models.AgencyDetail, int64, error)
-	GetByID(ctx context.Context, id uint) (*models.AgencyDetail, error)
-	GetAgencyProperties(ctx context.Context, agencyID uint, page, pageSize int) ([]*models.Property, int64, error)
-	Search(ctx context.Context, filter *models.SearchAgenciesRequest) ([]*models.AgencyDetail, int64, error)
-	
-	// 代理人相关
-	GetAgencyAgents(ctx context.Context, agencyID uint) ([]*models.Agent, error)
-	GetTopAgents(ctx context.Context, agencyID uint, limit int) ([]*models.Agent, error)
-	
-	// 统计相关
-	GetPropertyCount(ctx context.Context, agencyID uint) (int, error)
-}
-
-type agencyRepository struct {
+type AgencyRepo struct {
 	db *gorm.DB
 }
 
-// NewAgencyRepository 创建代理公司仓库
-func NewAgencyRepository(db *gorm.DB) AgencyRepository {
-	return &agencyRepository{db: db}
+func NewAgencyRepo(db *gorm.DB) *AgencyRepo {
+	return &AgencyRepo{db: db}
 }
 
-// List 获取代理公司列表
-func (r *agencyRepository) List(ctx context.Context, filter *models.ListAgenciesRequest) ([]*models.AgencyDetail, int64, error) {
-	var agencies []*models.AgencyDetail
+// FindAll 查询所有代理公司（带筛选和分页）
+func (r *AgencyRepo) FindAll(ctx context.Context, filter *models.ListAgenciesRequest) ([]models.AgencyDetail, int64, error) {
+	var agencies []models.AgencyDetail
 	var total int64
-	
+
 	query := r.db.WithContext(ctx).Model(&models.AgencyDetail{})
-	
+
 	// 应用筛选条件
-	if filter.IsVerified != nil {
-		query = query.Where("is_verified = ?", *filter.IsVerified)
+	if filter.DistrictID != nil {
+		// 查询该地区有代理人服务的公司
+		query = query.Where("user_id IN (?)",
+			r.db.Model(&models.Agent{}).
+				Select("agency_id").
+				Joins("INNER JOIN agent_service_areas ON agents.id = agent_service_areas.agent_id").
+				Where("agent_service_areas.district_id = ? AND agents.agency_id IS NOT NULL", *filter.DistrictID),
+		)
 	}
+
 	if filter.MinRating != nil {
 		query = query.Where("rating >= ?", *filter.MinRating)
 	}
-	if filter.Keyword != nil && *filter.Keyword != "" {
-		keyword := "%" + *filter.Keyword + "%"
-		query = query.Where("company_name LIKE ? OR company_name_en LIKE ? OR description LIKE ?", keyword, keyword, keyword)
+
+	if filter.IsVerified != nil {
+		query = query.Where("is_verified = ?", *filter.IsVerified)
 	}
-	
+
+	if filter.Keyword != "" {
+		keyword := "%" + filter.Keyword + "%"
+		query = query.Where("company_name LIKE ? OR company_name_en LIKE ? OR description LIKE ?",
+			keyword, keyword, keyword)
+	}
+
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
-	// 设置默认值
-	page := filter.Page
-	if page < 1 {
-		page = 1
+
+	// 排序
+	sortBy := "created_at"
+	if filter.SortBy != "" {
+		sortBy = filter.SortBy
 	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	sortOrder := "DESC"
+	if filter.SortOrder == "asc" {
+		sortOrder = "ASC"
 	}
-	sortBy := filter.SortBy
-	if sortBy == "" {
-		sortBy = "rating"
-	}
-	sortOrder := filter.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	
-	// 分页和排序
-	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-	
-	// 验证的代理公司优先
-	query = query.Order("is_verified DESC")
-	query = query.Order(sortBy + " " + sortOrder)
-	
-	// 预加载用户关联
-	query = query.Preload("User")
-	
+	query = query.Order(fmt.Sprintf("%s %s", sortBy, sortOrder))
+
+	// 分页
+	offset := (filter.Page - 1) * filter.PageSize
+	query = query.Offset(offset).Limit(filter.PageSize)
+
 	if err := query.Find(&agencies).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return agencies, total, nil
 }
 
-// GetByID 根据ID获取代理公司详情
-func (r *agencyRepository) GetByID(ctx context.Context, id uint) (*models.AgencyDetail, error) {
+// FindByID 根据ID查询代理公司
+func (r *AgencyRepo) FindByID(ctx context.Context, id uint) (*models.AgencyDetail, error) {
 	var agency models.AgencyDetail
-	
-	err := r.db.WithContext(ctx).
-		Preload("User").
-		First(&agency, id).Error
-	
-	if err != nil {
+	if err := r.db.WithContext(ctx).Preload("User").First(&agency, id).Error; err != nil {
 		return nil, err
 	}
-	
 	return &agency, nil
 }
 
-// GetAgencyProperties 获取代理公司的房源列表
-func (r *agencyRepository) GetAgencyProperties(ctx context.Context, agencyID uint, page, pageSize int) ([]*models.Property, int64, error) {
-	var properties []*models.Property
-	var total int64
-	
-	// 先验证代理公司是否存在
+// FindByUserID 根据UserID查询代理公司
+func (r *AgencyRepo) FindByUserID(ctx context.Context, userID uint) (*models.AgencyDetail, error) {
 	var agency models.AgencyDetail
-	if err := r.db.WithContext(ctx).First(&agency, agencyID).Error; err != nil {
-		return nil, 0, err
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&agency).Error; err != nil {
+		return nil, err
 	}
-	
-	// 查询该代理公司的所有代理人
-	var agentIDs []uint
-	if err := r.db.WithContext(ctx).
-		Model(&models.Agent{}).
-		Where("agency_id = ?", agencyID).
-		Pluck("id", &agentIDs).Error; err != nil {
-		return nil, 0, err
-	}
-	
-	if len(agentIDs) == 0 {
-		return []*models.Property{}, 0, nil
-	}
-	
-	// 查询这些代理人的房源
+	return &agency, nil
+}
+
+// GetAgencyProperties 查询代理公司的房源列表
+func (r *AgencyRepo) GetAgencyProperties(ctx context.Context, userID uint, page, pageSize int) ([]models.Property, int64, error) {
+	var properties []models.Property
+	var total int64
+
 	query := r.db.WithContext(ctx).Model(&models.Property{}).
-		Where("agent_id IN ?", agentIDs).
-		Where("status = ?", "active")
-	
+		Where("publisher_id = ? AND publisher_type = ?", userID, "agency")
+
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
-	// 分页
+
+	// 分页查询
 	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-	
-	// 排序：最新发布的在前
-	query = query.Order("created_at DESC")
-	
-	// 预加载关联数据
-	query = query.Preload("District").
-		Preload("Estate").
-		Preload("Images").
-		Preload("Agent")
-	
-	if err := query.Find(&properties).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).
+		Preload("District").
+		Order("created_at DESC").
+		Find(&properties).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return properties, total, nil
 }
 
-// Search 搜索代理公司
-func (r *agencyRepository) Search(ctx context.Context, filter *models.SearchAgenciesRequest) ([]*models.AgencyDetail, int64, error) {
-	var agencies []*models.AgencyDetail
-	var total int64
-	
-	query := r.db.WithContext(ctx).Model(&models.AgencyDetail{})
-	
-	// 搜索关键词
-	if filter.Keyword != "" {
-		keyword := "%" + filter.Keyword + "%"
-		query = query.Where("company_name LIKE ? OR company_name_en LIKE ? OR license_no LIKE ? OR description LIKE ?", 
-			keyword, keyword, keyword, keyword)
+// GetAgencyAgents 查询代理公司的代理人列表
+func (r *AgencyRepo) GetAgencyAgents(ctx context.Context, userID uint) ([]models.Agent, error) {
+	var agents []models.Agent
+	if err := r.db.WithContext(ctx).
+		Where("agency_id = ? AND status = ?", userID, "active").
+		Order("created_at DESC").
+		Find(&agents).Error; err != nil {
+		return nil, err
 	}
-	
+	return agents, nil
+}
+
+// CreateContact 创建代理公司联系记录
+func (r *AgencyRepo) CreateContact(ctx context.Context, contact *models.AgencyContact) error {
+	return r.db.WithContext(ctx).Create(contact).Error
+}
+
+// Search 搜索代理公司
+func (r *AgencyRepo) Search(ctx context.Context, keyword string, page, pageSize int) ([]models.AgencyDetail, int64, error) {
+	var agencies []models.AgencyDetail
+	var total int64
+
+	searchPattern := "%" + keyword + "%"
+	query := r.db.WithContext(ctx).Model(&models.AgencyDetail{}).
+		Where("company_name LIKE ? OR company_name_en LIKE ? OR license_no = ? OR description LIKE ?",
+			searchPattern, searchPattern, keyword, searchPattern)
+
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
-	// 设置默认值
-	page := filter.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	
-	// 分页和排序
+
+	// 分页查询
 	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-	
-	// 验证的优先，然后按评分排序
-	query = query.Order("is_verified DESC, rating DESC NULLS LAST")
-	
-	// 预加载用户关联
-	query = query.Preload("User")
-	
-	if err := query.Find(&agencies).Error; err != nil {
+	if err := query.Offset(offset).Limit(pageSize).
+		Order("is_verified DESC, rating DESC, agent_count DESC").
+		Find(&agencies).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return agencies, total, nil
 }
 
-// GetAgencyAgents 获取代理公司的所有代理人
-func (r *agencyRepository) GetAgencyAgents(ctx context.Context, agencyID uint) ([]*models.Agent, error) {
-	var agents []*models.Agent
-	
-	err := r.db.WithContext(ctx).
-		Where("agency_id = ?", agencyID).
-		Where("status = ?", models.AgentStatusActive).
-		Order("is_verified DESC, rating DESC NULLS LAST").
-		Find(&agents).Error
-	
-	if err != nil {
-		return nil, err
-	}
-	
-	return agents, nil
+// IncrementAgentCount 增加代理人数量
+func (r *AgencyRepo) IncrementAgentCount(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Model(&models.AgencyDetail{}).
+		Where("user_id = ?", userID).
+		UpdateColumn("agent_count", gorm.Expr("agent_count + ?", 1)).Error
 }
 
-// GetTopAgents 获取代理公司的优秀代理人
-func (r *agencyRepository) GetTopAgents(ctx context.Context, agencyID uint, limit int) ([]*models.Agent, error) {
-	var agents []*models.Agent
-	
-	if limit <= 0 {
-		limit = 5
-	}
-	
-	err := r.db.WithContext(ctx).
-		Where("agency_id = ?", agencyID).
-		Where("status = ?", models.AgentStatusActive).
-		Where("rating IS NOT NULL").
-		Order("rating DESC, review_count DESC").
-		Limit(limit).
-		Find(&agents).Error
-	
-	if err != nil {
-		return nil, err
-	}
-	
-	return agents, nil
-}
-
-// GetPropertyCount 获取代理公司的房源总数
-func (r *agencyRepository) GetPropertyCount(ctx context.Context, agencyID uint) (int, error) {
-	var count int64
-	
-	// 查询该代理公司的所有代理人
-	var agentIDs []uint
-	if err := r.db.WithContext(ctx).
-		Model(&models.Agent{}).
-		Where("agency_id = ?", agencyID).
-		Pluck("id", &agentIDs).Error; err != nil {
-		return 0, err
-	}
-	
-	if len(agentIDs) == 0 {
-		return 0, nil
-	}
-	
-	// 统计这些代理人的活跃房源数
-	err := r.db.WithContext(ctx).
-		Model(&models.Property{}).
-		Where("agent_id IN ?", agentIDs).
-		Where("status = ?", "active").
-		Count(&count).Error
-	
-	if err != nil {
-		return 0, err
-	}
-	
-	return int(count), nil
+// DecrementAgentCount 减少代理人数量
+func (r *AgencyRepo) DecrementAgentCount(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Model(&models.AgencyDetail{}).
+		Where("user_id = ?", userID).
+		Where("agent_count > ?", 0).
+		UpdateColumn("agent_count", gorm.Expr("agent_count - ?", 1)).Error
 }

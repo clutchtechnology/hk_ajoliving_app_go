@@ -1,226 +1,185 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-// AgencyHandler 代理公司处理器
-//
-// AgencyHandler Methods:
-// 0. NewAgencyHandler(service services.AgencyService) -> 注入 AgencyService
+// AgencyController Methods:
+// 0. NewAgencyController(service *services.AgencyService) -> 注入 AgencyService
 // 1. ListAgencies(c *gin.Context) -> 获取代理公司列表
 // 2. GetAgency(c *gin.Context) -> 获取代理公司详情
 // 3. GetAgencyProperties(c *gin.Context) -> 获取代理公司房源列表
 // 4. ContactAgency(c *gin.Context) -> 联系代理公司
 // 5. SearchAgencies(c *gin.Context) -> 搜索代理公司
-type AgencyHandler struct {
-	*BaseHandler
-	service services.AgencyService
+
+type AgencyController struct {
+	service *services.AgencyService
 }
 
-// 0. NewAgencyHandler 创建代理公司处理器
-func NewAgencyHandler(service services.AgencyService) *AgencyHandler {
-	return &AgencyHandler{
-		BaseHandler: NewBaseHandler(),
-		service:     service,
-	}
+// 0. NewAgencyController 构造函数
+func NewAgencyController(service *services.AgencyService) *AgencyController {
+	return &AgencyController{service: service}
 }
 
 // 1. ListAgencies 获取代理公司列表
-// @Summary 获取代理公司列表
-// @Description 获取代理公司列表，支持地区、验证状态、评分等筛选
-// @Tags 代理公司
-// @Accept json
-// @Produce json
-// @Param district_id query int false "服务地区ID"
-// @Param is_verified query bool false "是否已验证"
-// @Param min_rating query number false "最低评分"
-// @Param keyword query string false "关键词搜索（公司名称、简介）"
-// @Param page query int false "页码" default(1)
-// @Param page_size query int false "每页数量" default(20)
-// @Param sort_by query string false "排序字段" default(rating) Enums(rating, agent_count, created_at)
-// @Param sort_order query string false "排序方向" Enums(asc, desc) default(desc)
-// @Success 200 {object} models.PaginatedResponse{data=[]models.AgencyListItemResponse}
-// @Failure 400 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /api/v1/agencies [get]
-func (h *AgencyHandler) ListAgencies(c *gin.Context) {
-	var filter models.ListAgenciesRequest
-	if err := c.ShouldBindQuery(&filter); err != nil {
+// GET /api/v1/agencies
+func (ctrl *AgencyController) ListAgencies(c *gin.Context) {
+	var req models.ListAgenciesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
-	
-	agencies, total, err := h.service.ListAgencies(c.Request.Context(), &filter)
+
+	// 设置默认值
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 20
+	}
+
+	result, err := ctrl.service.ListAgencies(c.Request.Context(), &req)
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.SuccessWithPagination(c, agencies, &tools.Pagination{
-		Page:      filter.Page,
-		PageSize:  filter.PageSize,
-		Total:     total,
-		TotalPage: int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize)),
-	})
+
+	tools.Success(c, result)
 }
 
 // 2. GetAgency 获取代理公司详情
-// @Summary 获取代理公司详情
-// @Description 根据代理公司ID获取详细信息，包括优秀代理人、房源数量等
-// @Tags 代理公司
-// @Accept json
-// @Produce json
-// @Param id path int true "代理公司ID"
-// @Success 200 {object} models.Response{data=models.AgencyResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /api/v1/agencies/{id} [get]
-func (h *AgencyHandler) GetAgency(c *gin.Context) {
+// GET /api/v1/agencies/:id
+func (ctrl *AgencyController) GetAgency(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agency id")
 		return
 	}
-	
-	agency, err := h.service.GetAgency(c.Request.Context(), uint(id))
+
+	agency, err := ctrl.service.GetAgency(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == gorm.ErrRecordNotFound || err == tools.ErrNotFound {
 			tools.NotFound(c, "agency not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
+
 	tools.Success(c, agency)
 }
 
 // 3. GetAgencyProperties 获取代理公司房源列表
-// @Summary 获取代理公司房源列表
-// @Description 获取指定代理公司旗下所有代理人的房源
-// @Tags 代理公司
-// @Accept json
-// @Produce json
-// @Param id path int true "代理公司ID"
-// @Param page query int false "页码" default(1)
-// @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} models.PaginatedResponse{data=[]models.PropertyListItemResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /api/v1/agencies/{id}/properties [get]
-func (h *AgencyHandler) GetAgencyProperties(c *gin.Context) {
+// GET /api/v1/agencies/:id/properties
+func (ctrl *AgencyController) GetAgencyProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agency id")
 		return
 	}
-	
+
+	// 获取分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	
+
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	
-	properties, total, err := h.service.GetAgencyProperties(c.Request.Context(), uint(id), page, pageSize)
+
+	properties, total, err := ctrl.service.GetAgencyProperties(c.Request.Context(), uint(id), page, pageSize)
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == gorm.ErrRecordNotFound || err == tools.ErrNotFound {
 			tools.NotFound(c, "agency not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.SuccessWithPagination(c, properties, &tools.Pagination{
-		Page:      page,
-		PageSize:  pageSize,
-		Total:     total,
-		TotalPage: int((total + int64(pageSize) - 1) / int64(pageSize)),
-	})
+
+	// 构建响应
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	response := gin.H{
+		"properties":  properties,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+	}
+
+	tools.Success(c, response)
 }
 
 // 4. ContactAgency 联系代理公司
-// @Summary 联系代理公司
-// @Description 提交联系代理公司的请求，可以包含相关房产信息
-// @Tags 代理公司
-// @Accept json
-// @Produce json
-// @Param id path int true "代理公司ID"
-// @Param request body models.ContactAgencyRequest true "联系请求"
-// @Success 200 {object} models.Response{data=models.ContactAgencyResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /api/v1/agencies/{id}/contact [post]
-func (h *AgencyHandler) ContactAgency(c *gin.Context) {
+// POST /api/v1/agencies/:id/contact
+func (ctrl *AgencyController) ContactAgency(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agency id")
 		return
 	}
-	
+
 	var req models.ContactAgencyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
-	
-	result, err := h.service.ContactAgency(c.Request.Context(), uint(id), &req)
+
+	// 获取可选的用户ID（如果已登录）
+	var userID *uint
+	if userIDValue, exists := c.Get("user_id"); exists {
+		if uid, ok := userIDValue.(uint); ok {
+			userID = &uid
+		}
+	}
+
+	result, err := ctrl.service.ContactAgency(c.Request.Context(), uint(id), userID, &req)
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == gorm.ErrRecordNotFound || err == tools.ErrNotFound {
 			tools.NotFound(c, "agency not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.Success(c, result)
+
+	tools.Created(c, result)
 }
 
 // 5. SearchAgencies 搜索代理公司
-// @Summary 搜索代理公司
-// @Description 根据关键词搜索代理公司（公司名称、牌照号、简介等）
-// @Tags 代理公司
-// @Accept json
-// @Produce json
-// @Param keyword query string true "搜索关键词"
-// @Param page query int false "页码" default(1)
-// @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} models.PaginatedResponse{data=[]models.AgencyListItemResponse}
-// @Failure 400 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /api/v1/agencies/search [get]
-func (h *AgencyHandler) SearchAgencies(c *gin.Context) {
-	var filter models.SearchAgenciesRequest
-	if err := c.ShouldBindQuery(&filter); err != nil {
+// GET /api/v1/agencies/search
+func (ctrl *AgencyController) SearchAgencies(c *gin.Context) {
+	var req models.SearchAgenciesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
-	
-	agencies, total, err := h.service.SearchAgencies(c.Request.Context(), &filter)
+
+	// 设置默认值
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 20
+	}
+
+	result, err := ctrl.service.SearchAgencies(c.Request.Context(), &req)
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.SuccessWithPagination(c, agencies, &tools.Pagination{
-		Page:      filter.Page,
-		PageSize:  filter.PageSize,
-		Total:     total,
-		TotalPage: int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize)),
-	})
+
+	tools.Success(c, result)
 }

@@ -6,220 +6,252 @@ import (
 	"gorm.io/gorm"
 )
 
-// ServicedApartmentStatus 服务式住宅状态常量
-type ServicedApartmentStatus string
+// ============ GORM Model ============
 
-const (
-	ServicedApartmentStatusActive   ServicedApartmentStatus = "active"   // 营业中
-	ServicedApartmentStatusInactive ServicedApartmentStatus = "inactive" // 暂停营业
-	ServicedApartmentStatusClosed   ServicedApartmentStatus = "closed"   // 已关闭
-)
-
-// ServicedApartmentImageType 服务式住宅图片类型常量
-type ServicedApartmentImageType string
-
-const (
-	ServicedApartmentImageTypeExterior  ServicedApartmentImageType = "exterior"  // 外观
-	ServicedApartmentImageTypeLobby     ServicedApartmentImageType = "lobby"     // 大堂
-	ServicedApartmentImageTypeRoom      ServicedApartmentImageType = "room"      // 房间
-	ServicedApartmentImageTypeBathroom  ServicedApartmentImageType = "bathroom"  // 浴室
-	ServicedApartmentImageTypeFacility  ServicedApartmentImageType = "facility"  // 设施
-)
-
-// ServicedApartment 服务式住宅表模型
+// ServicedApartment 服务式住宅模型
 type ServicedApartment struct {
-	ID            uint                    `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name          string                  `gorm:"type:varchar(200);not null;index" json:"name"`
-	NameEn        *string                 `gorm:"type:varchar(200)" json:"name_en,omitempty"`
-	Address       string                  `gorm:"type:varchar(500);not null" json:"address"`
-	DistrictID    uint                    `gorm:"not null;index" json:"district_id"`
-	Description   *string                 `gorm:"type:text" json:"description,omitempty"`
-	Phone         string                  `gorm:"type:varchar(50);not null" json:"phone"`
-	WebsiteURL    *string                 `gorm:"type:varchar(500)" json:"website_url,omitempty"`
-	Email         *string                 `gorm:"type:varchar(255)" json:"email,omitempty"`
-	CompanyID     uint                    `gorm:"not null;index" json:"company_id"`
-	CheckInTime   *string                 `gorm:"type:varchar(50)" json:"check_in_time,omitempty"`
-	CheckOutTime  *string                 `gorm:"type:varchar(50)" json:"check_out_time,omitempty"`
-	MinStayDays   *int                    `json:"min_stay_days,omitempty"`
-	Status        ServicedApartmentStatus `gorm:"type:varchar(20);not null;index;default:'active'" json:"status"`
-	Rating        *float64                `gorm:"type:decimal(3,2)" json:"rating,omitempty"`
-	ReviewCount   int                     `gorm:"not null;default:0" json:"review_count"`
-	ViewCount     int                     `gorm:"not null;default:0" json:"view_count"`
-	FavoriteCount int                     `gorm:"not null;default:0" json:"favorite_count"`
-	IsFeatured    bool                    `gorm:"not null;default:false;index" json:"is_featured"`
-	CreatedAt     time.Time               `gorm:"autoCreateTime;index" json:"created_at"`
-	UpdatedAt     time.Time               `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt     gorm.DeletedAt          `gorm:"index" json:"-"`
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	Name         string         `gorm:"size:200;not null;index" json:"name"`                    // 住宅名称
+	NameEn       string         `gorm:"size:200" json:"name_en,omitempty"`                      // 英文名称
+	Address      string         `gorm:"size:500;not null" json:"address"`                       // 详细地址
+	DistrictID   uint           `gorm:"not null;index" json:"district_id"`                      // 所属地区ID
+	Description  string         `gorm:"type:text" json:"description,omitempty"`                 // 详细描述
+	Phone        string         `gorm:"size:50;not null" json:"phone"`                          // 联系电话
+	WebsiteURL   string         `gorm:"size:500" json:"website_url,omitempty"`                  // 官方网站
+	Email        string         `gorm:"size:255" json:"email,omitempty"`                        // 联系邮箱
+	CompanyID    uint           `gorm:"not null;index" json:"company_id"`                       // 所属公司ID（关联users表，user_type='agency'）
+	CheckInTime  string         `gorm:"size:50" json:"check_in_time,omitempty"`                 // 入住时间
+	CheckOutTime string         `gorm:"size:50" json:"check_out_time,omitempty"`                // 退房时间
+	MinStayDays  int            `json:"min_stay_days,omitempty"`                                // 最少入住天数
+	Status       string         `gorm:"size:20;not null;default:'active';index" json:"status"`  // active=营业中, inactive=暂停营业, closed=已关闭
+	Rating       float64        `gorm:"type:decimal(3,2)" json:"rating,omitempty"`              // 评分（0-5）
+	ReviewCount  int            `gorm:"default:0" json:"review_count"`                          // 评价数量
+	ViewCount    int            `gorm:"default:0" json:"view_count"`                            // 浏览次数
+	FavoriteCount int           `gorm:"default:0" json:"favorite_count"`                        // 收藏次数
+	IsFeatured   bool           `gorm:"default:false;index" json:"is_featured"`                 // 是否精选推荐
+	CreatedAt    time.Time      `gorm:"index" json:"created_at"`                                // 创建时间
+	UpdatedAt    time.Time      `json:"updated_at"`                                             // 更新时间
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`                                         // 软删除时间
 
 	// 关联
-	District   *District                    `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
-	Company    *User                        `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
-	Units      []ServicedApartmentUnit      `gorm:"foreignKey:ServicedApartmentID" json:"units,omitempty"`
-	Images     []ServicedApartmentImage     `gorm:"foreignKey:ServicedApartmentID" json:"images,omitempty"`
-	Facilities []Facility                   `gorm:"many2many:serviced_apartment_facilities" json:"facilities,omitempty"`
+	District *District                    `gorm:"foreignKey:DistrictID" json:"district,omitempty"`
+	Company  *User                        `gorm:"foreignKey:CompanyID" json:"company,omitempty"`
+	Images   []ServicedApartmentImage     `gorm:"foreignKey:ServicedApartmentID" json:"images,omitempty"`
+	Units    []ServicedApartmentUnit      `gorm:"foreignKey:ServicedApartmentID" json:"units,omitempty"`
 }
 
-// TableName 指定表名
 func (ServicedApartment) TableName() string {
 	return "serviced_apartments"
 }
 
-// ============ Request DTO ============
-
-// ListServicedApartmentsRequest 获取服务式公寓列表请求
-type ListServicedApartmentsRequest struct {
-	DistrictID   *uint    `form:"district_id"`
-	MinPrice     *float64 `form:"min_price" binding:"omitempty,gt=0"`
-	MaxPrice     *float64 `form:"max_price" binding:"omitempty,gt=0"`
-	MinArea      *float64 `form:"min_area" binding:"omitempty,gt=0"`
-	MaxArea      *float64 `form:"max_area" binding:"omitempty,gt=0"`
-	Bedrooms     *int     `form:"bedrooms" binding:"omitempty,min=0"`
-	Status       *string  `form:"status" binding:"omitempty,oneof=active inactive closed"`
-	MinStayDays  *int     `form:"min_stay_days" binding:"omitempty,min=1"`
-	IsFeatured   *bool    `form:"is_featured"`
-	Page         int      `form:"page,default=1" binding:"min=1"`
-	PageSize     int      `form:"page_size,default=20" binding:"min=1,max=100"`
-	SortBy       string   `form:"sort_by,default=name"`
-	SortOrder    string   `form:"sort_order,default=asc" binding:"omitempty,oneof=asc desc"`
-}
-
-// IsActive 判断是否营业中
-func (sa *ServicedApartment) IsActive() bool {
-	return sa.Status == ServicedApartmentStatusActive
-}
-
-// IsClosed 判断是否已关闭
-func (sa *ServicedApartment) IsClosed() bool {
-	return sa.Status == ServicedApartmentStatusClosed
-}
-
-// CheckIsFeatured 判断是否为精选推荐
-func (sa *ServicedApartment) CheckIsFeatured() bool {
-	return sa.IsFeatured
-}
-
-// HasWebsite 判断是否有官网
-func (sa *ServicedApartment) HasWebsite() bool {
-	return sa.WebsiteURL != nil && *sa.WebsiteURL != ""
-}
-
-// GetMinPrice 获取最低价格（从房型中）
-func (sa *ServicedApartment) GetMinPrice() float64 {
-	if len(sa.Units) == 0 {
-		return 0
-	}
-	minPrice := sa.Units[0].MonthlyPrice
-	for _, unit := range sa.Units {
-		if unit.MonthlyPrice < minPrice {
-			minPrice = unit.MonthlyPrice
-		}
-	}
-	return minPrice
-}
-
-// BeforeCreate GORM hook - 创建前执行
-func (sa *ServicedApartment) BeforeCreate(tx *gorm.DB) error {
-	if sa.Status == "" {
-		sa.Status = ServicedApartmentStatusActive
-	}
-	return nil
-}
-
-// ServicedApartmentUnit 服务式住宅房型表模型
+// ServicedApartmentUnit 服务式住宅房型
 type ServicedApartmentUnit struct {
-	ID                   uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID                   uint      `gorm:"primaryKey" json:"id"`
 	ServicedApartmentID  uint      `gorm:"not null;index" json:"serviced_apartment_id"`
-	UnitType             string    `gorm:"type:varchar(50);not null" json:"unit_type"`
-	Bedrooms             int       `gorm:"not null" json:"bedrooms"`
-	Bathrooms            *int      `json:"bathrooms,omitempty"`
-	Area                 float64   `gorm:"type:decimal(10,2);not null" json:"area"` // 平方尺
-	MaxOccupancy         int       `gorm:"not null" json:"max_occupancy"`
-	DailyPrice           *float64  `gorm:"type:decimal(10,2)" json:"daily_price,omitempty"`
-	WeeklyPrice          *float64  `gorm:"type:decimal(10,2)" json:"weekly_price,omitempty"`
-	MonthlyPrice         float64   `gorm:"type:decimal(10,2);not null;index" json:"monthly_price"`
-	AvailableUnits       int       `gorm:"not null" json:"available_units"`
-	Description          *string   `gorm:"type:text" json:"description,omitempty"`
-	SortOrder            int       `gorm:"not null;default:0" json:"sort_order"`
-	CreatedAt            time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt            time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-
-	// 关联
-	ServicedApartment *ServicedApartment         `gorm:"foreignKey:ServicedApartmentID;constraint:OnDelete:CASCADE" json:"serviced_apartment,omitempty"`
-	Images            []ServicedApartmentImage   `gorm:"foreignKey:UnitID" json:"images,omitempty"`
+	UnitType             string    `gorm:"size:50;not null" json:"unit_type"`          // 房型名称
+	Bedrooms             int       `gorm:"not null" json:"bedrooms"`                   // 房间数
+	Bathrooms            int       `json:"bathrooms,omitempty"`                        // 浴室数
+	Area                 float64   `gorm:"not null" json:"area"`                       // 面积（平方尺）
+	MaxOccupancy         int       `gorm:"not null" json:"max_occupancy"`              // 最多入住人数
+	DailyPrice           float64   `json:"daily_price,omitempty"`                      // 日租价格（港币）
+	WeeklyPrice          float64   `json:"weekly_price,omitempty"`                     // 周租价格（港币）
+	MonthlyPrice         float64   `gorm:"not null;index" json:"monthly_price"`        // 月租价格（港币）
+	AvailableUnits       int       `gorm:"not null" json:"available_units"`            // 可用单位数
+	Description          string    `gorm:"type:text" json:"description,omitempty"`     // 房型描述
+	SortOrder            int       `gorm:"default:0" json:"sort_order"`                // 排序顺序
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
-// TableName 指定表名
 func (ServicedApartmentUnit) TableName() string {
 	return "serviced_apartment_units"
 }
 
-// IsAvailable 判断是否有可用单位
-func (sau *ServicedApartmentUnit) IsAvailable() bool {
-	return sau.AvailableUnits > 0
-}
-
-// GetPricePerSqft 计算每平方尺月租
-func (sau *ServicedApartmentUnit) GetPricePerSqft() float64 {
-	if sau.Area == 0 {
-		return 0
-	}
-	return sau.MonthlyPrice / sau.Area
-}
-
-// HasDailyPrice 判断是否提供日租
-func (sau *ServicedApartmentUnit) HasDailyPrice() bool {
-	return sau.DailyPrice != nil && *sau.DailyPrice > 0
-}
-
-// HasWeeklyPrice 判断是否提供周租
-func (sau *ServicedApartmentUnit) HasWeeklyPrice() bool {
-	return sau.WeeklyPrice != nil && *sau.WeeklyPrice > 0
-}
-
-// ServicedApartmentImage 服务式住宅图片表模型
+// ServicedApartmentImage 服务式住宅图片
 type ServicedApartmentImage struct {
-	ID                  uint                       `gorm:"primaryKey;autoIncrement" json:"id"`
-	ServicedApartmentID *uint                      `gorm:"index" json:"serviced_apartment_id,omitempty"`
-	UnitID              *uint                      `gorm:"index" json:"unit_id,omitempty"`
-	ImageURL            string                     `gorm:"type:varchar(500);not null" json:"image_url"`
-	ImageType           ServicedApartmentImageType `gorm:"type:varchar(20);not null" json:"image_type"`
-	Title               *string                    `gorm:"type:varchar(200)" json:"title,omitempty"`
-	SortOrder           int                        `gorm:"not null;default:0" json:"sort_order"`
-	CreatedAt           time.Time                  `gorm:"autoCreateTime" json:"created_at"`
-
-	// 关联
-	ServicedApartment *ServicedApartment      `gorm:"foreignKey:ServicedApartmentID;constraint:OnDelete:CASCADE" json:"serviced_apartment,omitempty"`
-	Unit              *ServicedApartmentUnit  `gorm:"foreignKey:UnitID;constraint:OnDelete:CASCADE" json:"unit,omitempty"`
+	ID                  uint      `gorm:"primaryKey" json:"id"`
+	ServicedApartmentID *uint     `gorm:"index" json:"serviced_apartment_id,omitempty"` // 关联的服务式住宅ID（整体照片）
+	UnitID              *uint     `gorm:"index" json:"unit_id,omitempty"`               // 关联的房型ID（房型照片）
+	ImageURL            string    `gorm:"size:500;not null" json:"image_url"`
+	ImageType           string    `gorm:"size:20;not null" json:"image_type"` // exterior=外观, lobby=大堂, room=房间, bathroom=浴室, facilities=设施
+	Title               string    `gorm:"size:200" json:"title,omitempty"`
+	SortOrder           int       `gorm:"default:0" json:"sort_order"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
-// TableName 指定表名
 func (ServicedApartmentImage) TableName() string {
 	return "serviced_apartment_images"
 }
 
-// IsApartmentImage 判断是否为公寓整体图片
-func (sai *ServicedApartmentImage) IsApartmentImage() bool {
-	return sai.ServicedApartmentID != nil
+// ============ Request DTO ============
+
+// ListServicedApartmentsRequest 获取服务式住宅列表请求
+type ListServicedApartmentsRequest struct {
+	DistrictID    *uint    `form:"district_id"`                                                     // 地区ID
+	MinPrice      *float64 `form:"min_price" binding:"omitempty,gt=0"`                              // 最低月租
+	MaxPrice      *float64 `form:"max_price" binding:"omitempty,gt=0"`                              // 最高月租
+	MinRating     *float64 `form:"min_rating" binding:"omitempty,gte=0,lte=5"`                      // 最低评分
+	Status        *string  `form:"status" binding:"omitempty,oneof=active inactive closed"`         // 状态
+	IsFeatured    *bool    `form:"is_featured"`                                                     // 是否精选
+	Page          int      `form:"page,default=1" binding:"min=1"`                                  // 页码
+	PageSize      int      `form:"page_size,default=20" binding:"min=1,max=100"`                    // 每页数量
 }
 
-// IsUnitImage 判断是否为房型图片
-func (sai *ServicedApartmentImage) IsUnitImage() bool {
-	return sai.UnitID != nil
+// CreateServicedApartmentRequest 创建服务式住宅请求
+type CreateServicedApartmentRequest struct {
+	Name         string `json:"name" binding:"required,max=200"`        // 住宅名称
+	NameEn       string `json:"name_en" binding:"omitempty,max=200"`    // 英文名称
+	Address      string `json:"address" binding:"required,max=500"`     // 详细地址
+	DistrictID   uint   `json:"district_id" binding:"required"`         // 所属地区ID
+	Description  string `json:"description" binding:"omitempty"`        // 详细描述
+	Phone        string `json:"phone" binding:"required,max=50"`        // 联系电话
+	WebsiteURL   string `json:"website_url" binding:"omitempty,url"`    // 官方网站
+	Email        string `json:"email" binding:"omitempty,email"`        // 联系邮箱
+	CheckInTime  string `json:"check_in_time" binding:"omitempty"`      // 入住时间
+	CheckOutTime string `json:"check_out_time" binding:"omitempty"`     // 退房时间
+	MinStayDays  int    `json:"min_stay_days" binding:"omitempty,min=1"`// 最少入住天数
 }
 
-// ServicedApartmentFacility 服务式住宅设施关联表模型
-type ServicedApartmentFacility struct {
-	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	ServicedApartmentID uint      `gorm:"not null;index;uniqueIndex:idx_serviced_apt_facility" json:"serviced_apartment_id"`
-	FacilityID          uint      `gorm:"not null;index;uniqueIndex:idx_serviced_apt_facility" json:"facility_id"`
-	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
-
-	// 关联
-	ServicedApartment *ServicedApartment `gorm:"foreignKey:ServicedApartmentID;constraint:OnDelete:CASCADE" json:"serviced_apartment,omitempty"`
-	Facility          *Facility          `gorm:"foreignKey:FacilityID;constraint:OnDelete:CASCADE" json:"facility,omitempty"`
+// UpdateServicedApartmentRequest 更新服务式住宅请求
+type UpdateServicedApartmentRequest struct {
+	Name         *string `json:"name" binding:"omitempty,max=200"`
+	Description  *string `json:"description"`
+	Phone        *string `json:"phone" binding:"omitempty,max=50"`
+	WebsiteURL   *string `json:"website_url" binding:"omitempty,url"`
+	Email        *string `json:"email" binding:"omitempty,email"`
+	CheckInTime  *string `json:"check_in_time"`
+	CheckOutTime *string `json:"check_out_time"`
+	MinStayDays  *int    `json:"min_stay_days" binding:"omitempty,min=1"`
+	Status       *string `json:"status" binding:"omitempty,oneof=active inactive closed"`
 }
 
-// TableName 指定表名
-func (ServicedApartmentFacility) TableName() string {
-	return "serviced_apartment_facilities"
+// ============ Response DTO ============
+
+// ServicedApartmentResponse 服务式住宅响应（列表用）
+type ServicedApartmentResponse struct {
+	ID            uint      `json:"id"`
+	Name          string    `json:"name"`
+	NameEn        string    `json:"name_en,omitempty"`
+	Address       string    `json:"address"`
+	Phone         string    `json:"phone"`
+	Status        string    `json:"status"`
+	Rating        float64   `json:"rating,omitempty"`
+	ReviewCount   int       `json:"review_count"`
+	ViewCount     int       `json:"view_count"`
+	FavoriteCount int       `json:"favorite_count"`
+	IsFeatured    bool      `json:"is_featured"`
+	MinMonthlyPrice float64 `json:"min_monthly_price,omitempty"` // 最低月租
+	CoverImage    string    `json:"cover_image,omitempty"`
+	District      *District `json:"district,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// ServicedApartmentDetailResponse 服务式住宅详情响应
+type ServicedApartmentDetailResponse struct {
+	ID            uint                        `json:"id"`
+	Name          string                      `json:"name"`
+	NameEn        string                      `json:"name_en,omitempty"`
+	Address       string                      `json:"address"`
+	Description   string                      `json:"description,omitempty"`
+	Phone         string                      `json:"phone"`
+	WebsiteURL    string                      `json:"website_url,omitempty"`
+	Email         string                      `json:"email,omitempty"`
+	CompanyID     uint                        `json:"company_id"`
+	CheckInTime   string                      `json:"check_in_time,omitempty"`
+	CheckOutTime  string                      `json:"check_out_time,omitempty"`
+	MinStayDays   int                         `json:"min_stay_days,omitempty"`
+	Status        string                      `json:"status"`
+	Rating        float64                     `json:"rating,omitempty"`
+	ReviewCount   int                         `json:"review_count"`
+	ViewCount     int                         `json:"view_count"`
+	FavoriteCount int                         `json:"favorite_count"`
+	IsFeatured    bool                        `json:"is_featured"`
+	District      *District                   `json:"district,omitempty"`
+	Images        []ServicedApartmentImage    `json:"images,omitempty"`
+	Units         []ServicedApartmentUnit     `json:"units,omitempty"`
+	CreatedAt     time.Time                   `json:"created_at"`
+	UpdatedAt     time.Time                   `json:"updated_at"`
+}
+
+// PaginatedServicedApartmentsResponse 分页服务式住宅响应
+type PaginatedServicedApartmentsResponse struct {
+	Data       []ServicedApartmentResponse `json:"data"`
+	Total      int64                       `json:"total"`
+	Page       int                         `json:"page"`
+	PageSize   int                         `json:"page_size"`
+	TotalPages int                         `json:"total_pages"`
+}
+
+// ToServicedApartmentResponse 转换为服务式住宅响应
+func (sa *ServicedApartment) ToServicedApartmentResponse() *ServicedApartmentResponse {
+	resp := &ServicedApartmentResponse{
+		ID:            sa.ID,
+		Name:          sa.Name,
+		NameEn:        sa.NameEn,
+		Address:       sa.Address,
+		Phone:         sa.Phone,
+		Status:        sa.Status,
+		Rating:        sa.Rating,
+		ReviewCount:   sa.ReviewCount,
+		ViewCount:     sa.ViewCount,
+		FavoriteCount: sa.FavoriteCount,
+		IsFeatured:    sa.IsFeatured,
+		District:      sa.District,
+		CreatedAt:     sa.CreatedAt,
+	}
+
+	// 获取最低月租
+	if len(sa.Units) > 0 {
+		minPrice := sa.Units[0].MonthlyPrice
+		for _, unit := range sa.Units {
+			if unit.MonthlyPrice < minPrice && unit.MonthlyPrice > 0 {
+				minPrice = unit.MonthlyPrice
+			}
+		}
+		resp.MinMonthlyPrice = minPrice
+	}
+
+	// 获取封面图
+	if len(sa.Images) > 0 {
+		for _, img := range sa.Images {
+			if img.ImageType == "exterior" {
+				resp.CoverImage = img.ImageURL
+				break
+			}
+		}
+		if resp.CoverImage == "" {
+			resp.CoverImage = sa.Images[0].ImageURL
+		}
+	}
+
+	return resp
+}
+
+// ToServicedApartmentDetailResponse 转换为服务式住宅详情响应
+func (sa *ServicedApartment) ToServicedApartmentDetailResponse() *ServicedApartmentDetailResponse {
+	return &ServicedApartmentDetailResponse{
+		ID:            sa.ID,
+		Name:          sa.Name,
+		NameEn:        sa.NameEn,
+		Address:       sa.Address,
+		Description:   sa.Description,
+		Phone:         sa.Phone,
+		WebsiteURL:    sa.WebsiteURL,
+		Email:         sa.Email,
+		CompanyID:     sa.CompanyID,
+		CheckInTime:   sa.CheckInTime,
+		CheckOutTime:  sa.CheckOutTime,
+		MinStayDays:   sa.MinStayDays,
+		Status:        sa.Status,
+		Rating:        sa.Rating,
+		ReviewCount:   sa.ReviewCount,
+		ViewCount:     sa.ViewCount,
+		FavoriteCount: sa.FavoriteCount,
+		IsFeatured:    sa.IsFeatured,
+		District:      sa.District,
+		Images:        sa.Images,
+		Units:         sa.Units,
+		CreatedAt:     sa.CreatedAt,
+		UpdatedAt:     sa.UpdatedAt,
+	}
 }

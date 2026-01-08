@@ -1,7 +1,11 @@
 package tools
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
+// 预定义错误
 var (
 	ErrNotFound       = errors.New("resource not found")
 	ErrUnauthorized   = errors.New("unauthorized")
@@ -9,10 +13,11 @@ var (
 	ErrInvalidInput   = errors.New("invalid input")
 	ErrAlreadyExists  = errors.New("resource already exists")
 	ErrInternalServer = errors.New("internal server error")
-	ErrNotImplemented = errors.New("not implemented")
+	ErrInvalidToken   = errors.New("invalid token")
+	ErrExpiredToken   = errors.New("token expired")
 )
 
-// BusinessError 自定义业务错误
+// BusinessError 业务错误
 type BusinessError struct {
 	Code    int
 	Message string
@@ -21,21 +26,25 @@ type BusinessError struct {
 
 func (e *BusinessError) Error() string {
 	if e.Err != nil {
-		return e.Message + ": " + e.Err.Error()
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
 	}
 	return e.Message
 }
 
-// NewBusinessError 创建业务错误
-func NewBusinessError(code int, message string) *BusinessError {
+func (e *BusinessError) Unwrap() error {
+	return e.Err
+}
+
+// NewError 创建业务错误
+func NewError(code int, message string) *BusinessError {
 	return &BusinessError{
 		Code:    code,
 		Message: message,
 	}
 }
 
-// NewBusinessErrorWithErr 创建带底层错误的业务错误
-func NewBusinessErrorWithErr(code int, message string, err error) *BusinessError {
+// WrapError 包装底层错误
+func WrapError(code int, message string, err error) *BusinessError {
 	return &BusinessError{
 		Code:    code,
 		Message: message,

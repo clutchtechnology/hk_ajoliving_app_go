@@ -2,186 +2,358 @@ package databases
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"gorm.io/gorm"
 )
 
-// ValuationRepository 物业估价数据仓库接口
-type ValuationRepository interface {
-	ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.Estate, int64, error)
-	GetEstateValuation(ctx context.Context, estateID uint) (*models.Estate, error)
-	SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.Estate, int64, error)
-	GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) ([]*models.Estate, int64, error)
-	GetDistrictStatistics(ctx context.Context, districtID uint) (map[string]interface{}, error)
-}
-
-type valuationRepository struct {
+// ValuationRepo 估价仓储
+type ValuationRepo struct {
 	db *gorm.DB
 }
 
-func NewValuationRepository(db *gorm.DB) ValuationRepository {
-	return &valuationRepository{db: db}
+// NewValuationRepo 创建估价仓储
+func NewValuationRepo(db *gorm.DB) *ValuationRepo {
+	return &ValuationRepo{db: db}
 }
 
-func (r *valuationRepository) ListValuations(ctx context.Context, req *models.ListValuationsRequest) ([]*models.Estate, int64, error) {
-	var estates []*models.Estate
+// FindAllValuations 查询屋苑估价列表
+func (r *ValuationRepo) FindAllValuations(ctx context.Context, filter *models.ListValuationsRequest) ([]models.ValuationResponse, int64, error) {
+	var estates []models.Estate
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&models.Estate{}).
-		Where("avg_transaction_price IS NOT NULL")
+	query := r.db.WithContext(ctx).Model(&models.Estate{})
 
-	// 筛选条件
-	if req.DistrictID != nil {
-		query = query.Where("district_id = ?", *req.DistrictID)
-	}
-	if req.MinPrice != nil {
-		query = query.Where("avg_transaction_price >= ?", *req.MinPrice)
-	}
-	if req.MaxPrice != nil {
-		query = query.Where("avg_transaction_price <= ?", *req.MaxPrice)
-	}
-	if req.SchoolNet != nil && *req.SchoolNet != "" {
-		query = query.Where("primary_school_net = ? OR secondary_school_net = ?", *req.SchoolNet, *req.SchoolNet)
+	// 应用筛选条件
+	if filter.DistrictID != nil {
+		query = query.Where("district_id = ?", *filter.DistrictID)
 	}
 
-	// 统计
+	if filter.PrimarySchoolNet != nil && *filter.PrimarySchoolNet != "" {
+		query = query.Where("primary_school_net = ?", *filter.PrimarySchoolNet)
+	}
+
+	if filter.SecondarySchoolNet != nil && *filter.SecondarySchoolNet != "" {
+		query = query.Where("secondary_school_net = ?", *filter.SecondarySchoolNet)
+	}
+
+	if filter.MinAvgPrice != nil {
+		query = query.Where("avg_transaction_price >= ?", *filter.MinAvgPrice)
+	}
+
+	if filter.MaxAvgPrice != nil {
+		query = query.Where("avg_transaction_price <= ?", *filter.MaxAvgPrice)
+	}
+
+	// 关键词搜索
+	if filter.Keyword != "" {
+		keyword := "%" + filter.Keyword + "%"
+		query = query.Where("name LIKE ? OR name_en LIKE ? OR address LIKE ?", keyword, keyword, keyword)
+	}
+
+	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页排序
-	offset := (req.Page - 1) * req.PageSize
-	sortColumn := req.SortBy
-	if sortColumn == "" {
-		sortColumn = "avg_transaction_price"
-	}
-	sortOrder := req.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
+	// 排序
+	sortBy := "avg_transaction_price"
+	if filter.SortBy != "" {
+		switch filter.SortBy {
+		case "name":
+			sortBy = "name"
+		case "price":
+			sortBy = "avg_transaction_price"
+		case "yield":
+			sortBy = "avg_transaction_price" // TODO: 增加租金回报率字段后修改
+		case "transactions":
+			sortBy = "recent_transactions_count"
+		}
 	}
 
-	query = query.Offset(offset).Limit(req.PageSize).Order(sortColumn + " " + sortOrder)
+	sortOrder := "desc"
+	if filter.SortOrder == "asc" {
+		sortOrder = "asc"
+	}
+
+	query = query.Order(sortBy + " " + sortOrder)
+
+	// 分页
+	offset := (filter.Page - 1) * filter.PageSize
+	query = query.Offset(offset).Limit(filter.PageSize)
+
+	// 预加载关联
 	query = query.Preload("District")
 
 	if err := query.Find(&estates).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return estates, total, nil
+	// 转换为估价响应
+	valuations := make([]models.ValuationResponse, len(estates))
+	for i, estate := range estates {
+		valuations[i] = r.estateToValuation(ctx, &estate)
+	}
+
+	return valuations, total, nil
 }
 
-func (r *valuationRepository) GetEstateValuation(ctx context.Context, estateID uint) (*models.Estate, error) {
+// GetEstateValuation 获取指定屋苑估价详情
+func (r *ValuationRepo) GetEstateValuation(ctx context.Context, estateID uint) (*models.EstateValuationDetail, error) {
 	var estate models.Estate
-	err := r.db.WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Preload("District").
-		First(&estate, estateID).Error
-	if err != nil {
+		First(&estate, estateID).Error; err != nil {
 		return nil, err
 	}
-	return &estate, nil
+
+	// 基础估价信息
+	valuation := &models.EstateValuationDetail{
+		EstateID:               estate.ID,
+		EstateName:             estate.Name,
+		EstateNameEn:           estate.NameEn,
+		Address:                estate.Address,
+		District:               estate.District,
+		CompletionYear:         estate.CompletionYear,
+		Developer:              estate.Developer,
+		TotalBlocks:            estate.TotalBlocks,
+		TotalUnits:             estate.TotalUnits,
+		PrimarySchoolNet:       estate.PrimarySchoolNet,
+		SecondarySchoolNet:     estate.SecondarySchoolNet,
+		AvgPricePerSqft:        estate.AvgTransactionPrice,
+		RecentTransactionCount: estate.RecentTransactionsCount,
+		ForSaleCount:           estate.ForSaleCount,
+		ForRentCount:           estate.ForRentCount,
+		LastUpdated:            estate.UpdatedAt,
+	}
+
+	// 查询户型价格分布
+	unitTypePrices, err := r.getUnitTypePrices(ctx, estate.Name)
+	if err == nil {
+		valuation.UnitTypePrices = unitTypePrices
+	}
+
+	// 计算平均售价和租金
+	avgPrices := r.getAvgPrices(ctx, estate.Name)
+	valuation.AvgSalePrice = avgPrices["sale"]
+	valuation.AvgRentPrice = avgPrices["rent"]
+
+	// 计算租金回报率
+	if valuation.AvgSalePrice > 0 && valuation.AvgRentPrice > 0 {
+		valuation.RentalYield = (valuation.AvgRentPrice * 12 / valuation.AvgSalePrice) * 100
+	}
+
+	// 获取价格范围
+	priceRange := r.getPriceRange(ctx, estate.Name)
+	valuation.MinPricePerSqft = priceRange["min"]
+	valuation.MaxPricePerSqft = priceRange["max"]
+
+	// 获取价格历史（最近12个月）
+	// TODO: 实现价格历史查询
+	valuation.PriceHistory = []models.PriceHistoryPoint{}
+
+	// 获取近期成交
+	// TODO: 实现成交记录查询
+	valuation.RecentTransactions = []models.TransactionSummary{}
+
+	return valuation, nil
 }
 
-func (r *valuationRepository) SearchValuations(ctx context.Context, req *models.SearchValuationsRequest) ([]*models.Estate, int64, error) {
-	var estates []*models.Estate
+// SearchValuations 搜索屋苑估价
+func (r *ValuationRepo) SearchValuations(ctx context.Context, keyword string, page, pageSize int) ([]models.ValuationResponse, int64, error) {
+	var estates []models.Estate
 	var total int64
 
+	searchKeyword := "%" + keyword + "%"
 	query := r.db.WithContext(ctx).Model(&models.Estate{}).
-		Where("avg_transaction_price IS NOT NULL")
+		Where("name LIKE ? OR name_en LIKE ? OR address LIKE ?", searchKeyword, searchKeyword, searchKeyword)
 
-	// 搜索关键词（屋苑名称或地址）
-	if req.Keyword != "" {
-		searchPattern := fmt.Sprintf("%%%s%%", req.Keyword)
-		query = query.Where("name LIKE ? OR name_en LIKE ? OR address LIKE ?", searchPattern, searchPattern, searchPattern)
-	}
-
-	// 筛选条件
-	if req.DistrictID != nil {
-		query = query.Where("district_id = ?", *req.DistrictID)
-	}
-	if req.MinPrice != nil {
-		query = query.Where("avg_transaction_price >= ?", *req.MinPrice)
-	}
-	if req.MaxPrice != nil {
-		query = query.Where("avg_transaction_price <= ?", *req.MaxPrice)
-	}
-
-	// 统计
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// 分页
-	offset := (req.Page - 1) * req.PageSize
-	query = query.Offset(offset).Limit(req.PageSize).
-		Order("avg_transaction_price DESC").
-		Preload("District")
-
-	if err := query.Find(&estates).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return estates, total, nil
-}
-
-func (r *valuationRepository) GetDistrictValuations(ctx context.Context, districtID uint, page, pageSize int) ([]*models.Estate, int64, error) {
-	var estates []*models.Estate
-	var total int64
-
-	query := r.db.WithContext(ctx).Model(&models.Estate{}).
-		Where("district_id = ?", districtID).
-		Where("avg_transaction_price IS NOT NULL")
-
-	// 统计
+	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// 分页
 	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize).
-		Order("avg_transaction_price DESC").
-		Preload("District")
+	query = query.Offset(offset).Limit(pageSize)
+
+	// 预加载关联
+	query = query.Preload("District").Order("view_count DESC")
 
 	if err := query.Find(&estates).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return estates, total, nil
-}
-
-func (r *valuationRepository) GetDistrictStatistics(ctx context.Context, districtID uint) (map[string]interface{}, error) {
-	var result struct {
-		TotalEstates       int64
-		AvgPrice           float64
-		MinPrice           float64
-		MaxPrice           float64
-		TotalTransactions  int64
+	// 转换为估价响应
+	valuations := make([]models.ValuationResponse, len(estates))
+	for i, estate := range estates {
+		valuations[i] = r.estateToValuation(ctx, &estate)
 	}
 
-	err := r.db.WithContext(ctx).Model(&models.Estate{}).
-		Select(`
-			COUNT(*) as total_estates,
-			AVG(avg_transaction_price) as avg_price,
-			MIN(avg_transaction_price) as min_price,
-			MAX(avg_transaction_price) as max_price,
-			SUM(recent_transactions_count) as total_transactions
-		`).
-		Where("district_id = ?", districtID).
-		Where("avg_transaction_price IS NOT NULL").
-		Scan(&result).Error
+	return valuations, total, nil
+}
 
-	if err != nil {
+// GetDistrictValuations 获取地区屋苑估价列表
+func (r *ValuationRepo) GetDistrictValuations(ctx context.Context, districtID uint) (*models.DistrictValuationSummary, error) {
+	var district models.District
+	if err := r.db.WithContext(ctx).First(&district, districtID).Error; err != nil {
 		return nil, err
 	}
 
-	statistics := map[string]interface{}{
-		"total_estates":      result.TotalEstates,
-		"avg_price":          result.AvgPrice,
-		"min_price":          result.MinPrice,
-		"max_price":          result.MaxPrice,
-		"total_transactions": result.TotalTransactions,
+	var estates []models.Estate
+	if err := r.db.WithContext(ctx).
+		Where("district_id = ?", districtID).
+		Order("avg_transaction_price DESC").
+		Find(&estates).Error; err != nil {
+		return nil, err
 	}
 
-	return statistics, nil
+	// 计算地区汇总数据
+	summary := &models.DistrictValuationSummary{
+		DistrictID:  districtID,
+		District:    &district,
+		EstateCount: len(estates),
+	}
+
+	if len(estates) > 0 {
+		var sumPrice, minPrice, maxPrice float64
+		var totalTransactions int
+
+		minPrice = estates[0].AvgTransactionPrice
+		maxPrice = estates[0].AvgTransactionPrice
+
+		for _, estate := range estates {
+			sumPrice += estate.AvgTransactionPrice
+			totalTransactions += estate.RecentTransactionsCount
+
+			if estate.AvgTransactionPrice < minPrice && estate.AvgTransactionPrice > 0 {
+				minPrice = estate.AvgTransactionPrice
+			}
+			if estate.AvgTransactionPrice > maxPrice {
+				maxPrice = estate.AvgTransactionPrice
+			}
+		}
+
+		summary.AvgPricePerSqft = sumPrice / float64(len(estates))
+		summary.MinPricePerSqft = minPrice
+		summary.MaxPricePerSqft = maxPrice
+		summary.TotalTransactions = totalTransactions
+	}
+
+	// 转换屋苑列表为估价响应
+	summary.Estates = make([]models.ValuationResponse, len(estates))
+	for i, estate := range estates {
+		summary.Estates[i] = r.estateToValuation(ctx, &estate)
+	}
+
+	return summary, nil
+}
+
+// estateToValuation 转换屋苑为估价响应
+func (r *ValuationRepo) estateToValuation(ctx context.Context, estate *models.Estate) models.ValuationResponse {
+	valuation := models.ValuationResponse{
+		EstateID:               estate.ID,
+		EstateName:             estate.Name,
+		EstateNameEn:           estate.NameEn,
+		DistrictID:             estate.DistrictID,
+		District:               estate.District,
+		Address:                estate.Address,
+		CompletionYear:         estate.CompletionYear,
+		TotalUnits:             estate.TotalUnits,
+		AvgPricePerSqft:        estate.AvgTransactionPrice,
+		RecentTransactionCount: estate.RecentTransactionsCount,
+		ForSaleCount:           estate.ForSaleCount,
+		ForRentCount:           estate.ForRentCount,
+		LastUpdated:            estate.UpdatedAt,
+	}
+
+	// 获取平均价格
+	avgPrices := r.getAvgPrices(ctx, estate.Name)
+	valuation.AvgSalePrice = avgPrices["sale"]
+	valuation.AvgRentPrice = avgPrices["rent"]
+
+	// 计算租金回报率
+	if valuation.AvgSalePrice > 0 && valuation.AvgRentPrice > 0 {
+		valuation.RentalYield = (valuation.AvgRentPrice * 12 / valuation.AvgSalePrice) * 100
+	}
+
+	// 获取价格范围
+	priceRange := r.getPriceRange(ctx, estate.Name)
+	valuation.MinPricePerSqft = priceRange["min"]
+	valuation.MaxPricePerSqft = priceRange["max"]
+
+	// TODO: 计算价格变化趋势（需要历史数据）
+	valuation.PriceChange30d = 0
+	valuation.PriceChange90d = 0
+
+	return valuation
+}
+
+// getUnitTypePrices 获取户型价格分布
+func (r *ValuationRepo) getUnitTypePrices(ctx context.Context, estateName string) ([]models.UnitTypePriceBreakdown, error) {
+	var results []models.UnitTypePriceBreakdown
+
+	err := r.db.WithContext(ctx).
+		Model(&models.Property{}).
+		Select(`
+			bedrooms,
+			AVG(area) as avg_area,
+			AVG(price) as avg_price,
+			AVG(price / area) as avg_price_per_sqft,
+			MIN(price) as min_price,
+			MAX(price) as max_price,
+			COUNT(*) as available_count
+		`).
+		Where("building_name = ? AND status = ?", estateName, "available").
+		Group("bedrooms").
+		Order("bedrooms").
+		Scan(&results).Error
+
+	return results, err
+}
+
+// getAvgPrices 获取平均售价和租金
+func (r *ValuationRepo) getAvgPrices(ctx context.Context, estateName string) map[string]float64 {
+	result := make(map[string]float64)
+
+	// 平均售价
+	var avgSalePrice float64
+	r.db.WithContext(ctx).
+		Model(&models.Property{}).
+		Select("AVG(price) as avg_sale_price").
+		Where("building_name = ? AND listing_type = ? AND status = ?", estateName, "sale", "available").
+		Scan(&avgSalePrice)
+	result["sale"] = avgSalePrice
+
+	// 平均租金
+	var avgRentPrice float64
+	r.db.WithContext(ctx).
+		Model(&models.Property{}).
+		Select("AVG(price) as avg_rent_price").
+		Where("building_name = ? AND listing_type = ? AND status = ?", estateName, "rent", "available").
+		Scan(&avgRentPrice)
+	result["rent"] = avgRentPrice
+
+	return result
+}
+
+// getPriceRange 获取价格范围
+func (r *ValuationRepo) getPriceRange(ctx context.Context, estateName string) map[string]float64 {
+	result := make(map[string]float64)
+
+	var priceRange struct {
+		MinPrice float64
+		MaxPrice float64
+	}
+
+	r.db.WithContext(ctx).
+		Model(&models.Property{}).
+		Select("MIN(price / area) as min_price, MAX(price / area) as max_price").
+		Where("building_name = ? AND status = ?", estateName, "available").
+		Scan(&priceRange)
+
+	result["min"] = priceRange.MinPrice
+	result["max"] = priceRange.MaxPrice
+
+	return result
 }

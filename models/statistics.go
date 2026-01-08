@@ -1,244 +1,239 @@
 package models
 
-// statistics.go - 统计相关的响应类型定义
+import "time"
 
-// ============ 请求类型 ============
+// ============ Request DTO ============
 
 // GetOverviewStatisticsRequest 获取总览统计请求
 type GetOverviewStatisticsRequest struct {
-	Period string `form:"period,default=month" binding:"omitempty,oneof=day week month year"`
+	StartDate *string `form:"start_date"` // 开始日期 (YYYY-MM-DD)
+	EndDate   *string `form:"end_date"`   // 结束日期 (YYYY-MM-DD)
 }
 
-// ============ 总览统计响应 ============
-
-// PropertyOverview 房产总览统计
-type PropertyOverview struct {
-	TotalCount    int     `json:"total_count"`
-	ActiveCount   int     `json:"active_count"`
-	RentCount     int     `json:"rent_count"`
-	SaleCount     int     `json:"sale_count"`
-	NewToday      int     `json:"new_today"`
-	NewThisWeek   int     `json:"new_this_week"`
-	NewThisMonth  int     `json:"new_this_month"`
-	AveragePrice  float64 `json:"average_price"`
-	TotalValue    float64 `json:"total_value"`
+// GetPropertyStatisticsRequest 获取房产统计请求
+type GetPropertyStatisticsRequest struct {
+	StartDate  *string `form:"start_date"`  // 开始日期 (YYYY-MM-DD)
+	EndDate    *string `form:"end_date"`    // 结束日期 (YYYY-MM-DD)
+	DistrictID *uint   `form:"district_id"` // 地区ID
 }
 
-// UserOverview 用户总览统计
-type UserOverview struct {
-	TotalCount    int `json:"total_count"`
-	ActiveCount   int `json:"active_count"`
-	NewToday      int `json:"new_today"`
-	NewThisWeek   int `json:"new_this_week"`
-	NewThisMonth  int `json:"new_this_month"`
-	VerifiedCount int `json:"verified_count"`
+// GetTransactionStatisticsRequest 获取成交统计请求
+type GetTransactionStatisticsRequest struct {
+	StartDate  *string `form:"start_date"`  // 开始日期 (YYYY-MM-DD)
+	EndDate    *string `form:"end_date"`    // 结束日期 (YYYY-MM-DD)
+	DistrictID *uint   `form:"district_id"` // 地区ID
 }
 
-// AgentOverview 代理人总览统计
-type AgentOverview struct {
-	TotalCount    int     `json:"total_count"`
-	ActiveCount   int     `json:"active_count"`
-	AverageRating float64 `json:"average_rating"`
-	TopAgents     int     `json:"top_agents"`
+// GetUserStatisticsRequest 获取用户统计请求
+type GetUserStatisticsRequest struct {
+	StartDate *string `form:"start_date"` // 开始日期 (YYYY-MM-DD)
+	EndDate   *string `form:"end_date"`   // 结束日期 (YYYY-MM-DD)
 }
 
-// TransactionOverview 成交总览统计
-type TransactionOverview struct {
-	TotalCount      int     `json:"total_count"`
-	TodayCount      int     `json:"today_count"`
-	ThisWeekCount   int     `json:"this_week_count"`
-	ThisMonthCount  int     `json:"this_month_count"`
-	TotalAmount     float64 `json:"total_amount"`
-	AverageAmount   float64 `json:"average_amount"`
-}
-
-// PlatformMetrics 平台指标
-type PlatformMetrics struct {
-	TotalViews     int     `json:"total_views"`
-	TodayViews     int     `json:"today_views"`
-	SearchCount    int     `json:"search_count"`
-	ConversionRate float64 `json:"conversion_rate"`
-}
+// ============ Response DTO ============
 
 // OverviewStatisticsResponse 总览统计响应
 type OverviewStatisticsResponse struct {
-	Properties      PropertyOverview    `json:"properties"`
-	Users           UserOverview        `json:"users"`
-	Agents          AgentOverview       `json:"agents"`
-	Transactions    TransactionOverview `json:"transactions"`
-	PlatformMetrics PlatformMetrics     `json:"platform_metrics"`
-}
+	// 房产统计
+	TotalProperties       int64 `json:"total_properties"`        // 总房产数
+	SaleProperties        int64 `json:"sale_properties"`         // 出售房产数
+	RentProperties        int64 `json:"rent_properties"`         // 出租房产数
+	AvailableProperties   int64 `json:"available_properties"`    // 可用房产数
+	NewPropertiesThisWeek int64 `json:"new_properties_this_week"` // 本周新增房产
 
-// ============ 房产统计响应 ============
+	// 用户统计
+	TotalUsers        int64 `json:"total_users"`         // 总用户数
+	IndividualUsers   int64 `json:"individual_users"`    // 普通用户数
+	AgencyUsers       int64 `json:"agency_users"`        // 代理公司数
+	NewUsersThisMonth int64 `json:"new_users_this_month"` // 本月新增用户
 
-// PropertyStatisticsSummary 房产统计汇总
-type PropertyStatisticsSummary struct {
-	TotalCount   int     `json:"total_count"`
-	RentCount    int     `json:"rent_count"`
-	SaleCount    int     `json:"sale_count"`
-	AveragePrice float64 `json:"average_price"`
-	MedianPrice  float64 `json:"median_price"`
-	HighestPrice float64 `json:"highest_price"`
-	LowestPrice  float64 `json:"lowest_price"`
-	TotalValue   float64 `json:"total_value"`
-}
+	// 代理统计
+	TotalAgents     int64 `json:"total_agents"`      // 总代理人数
+	VerifiedAgents  int64 `json:"verified_agents"`   // 已验证代理数
+	ActiveAgents    int64 `json:"active_agents"`     // 活跃代理数
 
-// TrendItem 趋势数据项（通用）
-type TrendItem struct {
-	Period string  `json:"period"` // 日期格式：2006-01-02 或 2006-01
-	Count  int     `json:"count"`
-	Value  float64 `json:"value,omitempty"` // 可选的数值（如平均价格）
-}
+	// 屋苑统计
+	TotalEstates    int64 `json:"total_estates"`     // 总屋苑数
 
-// PropertyDistribution 房产分布统计
-type PropertyDistribution struct {
-	ByDistrict     []*DistrictStatItem      `json:"by_district"`
-	ByPropertyType []*PropertyTypeStatItem  `json:"by_property_type"`
-	ByPriceRange   []*PriceRangeStatItem    `json:"by_price_range"`
-	ByBedroomCount []*BedroomCountStatItem  `json:"by_bedroom_count"`
-}
+	// 家具统计
+	TotalFurniture      int64 `json:"total_furniture"`       // 总家具数
+	AvailableFurniture  int64 `json:"available_furniture"`   // 可用家具数
 
-// DistrictStatItem 地区统计项
-type DistrictStatItem struct {
-	DistrictID   uint    `json:"district_id"`
-	DistrictName string  `json:"district_name"`
-	Count        int     `json:"count"`
-	Percentage   float64 `json:"percentage"`
-	AveragePrice float64 `json:"average_price,omitempty"`
-}
-
-// PropertyTypeStatItem 房产类型统计项
-type PropertyTypeStatItem struct {
-	PropertyType string  `json:"property_type"`
-	Count        int     `json:"count"`
-	Percentage   float64 `json:"percentage"`
-}
-
-// PriceRangeStatItem 价格区间统计项
-type PriceRangeStatItem struct {
-	Range      string  `json:"range"`       // 如 "0-1M", "1M-2M"
-	Count      int     `json:"count"`
-	Percentage float64 `json:"percentage"`
-}
-
-// BedroomCountStatItem 睡房数量统计项
-type BedroomCountStatItem struct {
-	Bedrooms   int     `json:"bedrooms"`
-	Count      int     `json:"count"`
-	Percentage float64 `json:"percentage"`
+	// 时间范围
+	StartDate *string `json:"start_date,omitempty"` // 统计开始日期
+	EndDate   *string `json:"end_date,omitempty"`   // 统计结束日期
 }
 
 // PropertyStatisticsResponse 房产统计响应
 type PropertyStatisticsResponse struct {
-	Summary      *PropertyStatisticsSummary `json:"summary"`
-	TrendData    []*TrendItem               `json:"trend_data"`
-	Distribution *PropertyDistribution      `json:"distribution"`
+	// 房产数量统计
+	TotalProperties     int64 `json:"total_properties"`      // 总房产数
+	SaleProperties      int64 `json:"sale_properties"`       // 出售房产数
+	RentProperties      int64 `json:"rent_properties"`       // 出租房产数
+	AvailableProperties int64 `json:"available_properties"`  // 可用房产数
+	PendingProperties   int64 `json:"pending_properties"`    // 待定房产数
+	SoldProperties      int64 `json:"sold_properties"`       // 已售/已租房产数
+
+	// 价格统计
+	AvgSalePrice       float64 `json:"avg_sale_price"`        // 平均售价
+	AvgRentPrice       float64 `json:"avg_rent_price"`        // 平均租金
+	MaxSalePrice       float64 `json:"max_sale_price"`        // 最高售价
+	MinSalePrice       float64 `json:"min_sale_price"`        // 最低售价
+	MaxRentPrice       float64 `json:"max_rent_price"`        // 最高租金
+	MinRentPrice       float64 `json:"min_rent_price"`        // 最低租金
+
+	// 面积统计
+	AvgArea float64 `json:"avg_area"` // 平均面积
+	MaxArea float64 `json:"max_area"` // 最大面积
+	MinArea float64 `json:"min_area"` // 最小面积
+
+	// 房型统计
+	BedroomDistribution []BedroomStat `json:"bedroom_distribution"` // 房间数分布
+
+	// 物业类型统计
+	PropertyTypeDistribution []PropertyTypeStat `json:"property_type_distribution"` // 物业类型分布
+
+	// 地区统计
+	DistrictDistribution []DistrictStat `json:"district_distribution"` // 地区分布
+
+	// 时间趋势
+	NewPropertiesThisWeek  int64 `json:"new_properties_this_week"`  // 本周新增
+	NewPropertiesThisMonth int64 `json:"new_properties_this_month"` // 本月新增
+	NewPropertiesThisYear  int64 `json:"new_properties_this_year"`  // 本年新增
+
+	// 浏览与收藏
+	TotalViews     int64 `json:"total_views"`     // 总浏览次数
+	TotalFavorites int64 `json:"total_favorites"` // 总收藏次数
+	AvgViews       float64 `json:"avg_views"`       // 平均浏览次数
+	AvgFavorites   float64 `json:"avg_favorites"`   // 平均收藏次数
+
+	// 时间范围
+	StartDate  *string `json:"start_date,omitempty"`  // 统计开始日期
+	EndDate    *string `json:"end_date,omitempty"`    // 统计结束日期
+	DistrictID *uint   `json:"district_id,omitempty"` // 地区ID
 }
 
-// ============ 交易统计响应 ============
-
-// TransactionStatisticsSummary 交易统计汇总
-type TransactionStatisticsSummary struct {
-	TotalCount          int     `json:"total_count"`
-	TotalAmount         float64 `json:"total_amount"`
-	AverageAmount       float64 `json:"average_amount"`
-	MedianAmount        float64 `json:"median_amount"`
-	HighestAmount       float64 `json:"highest_amount"`
-	LowestAmount        float64 `json:"lowest_amount"`
-	AveragePricePerSqft float64 `json:"average_price_per_sqft"`
+// BedroomStat 房间数统计
+type BedroomStat struct {
+	Bedrooms int   `json:"bedrooms"` // 房间数
+	Count    int64 `json:"count"`    // 数量
 }
 
-// TransactionTrendItem 交易趋势数据项
-type TransactionTrendItem struct {
-	Period        string  `json:"period"` // 日期格式：2006-01-02
-	Count         int     `json:"count"`
-	AverageAmount float64 `json:"average_amount"`
+// PropertyTypeStat 物业类型统计
+type PropertyTypeStat struct {
+	PropertyType string `json:"property_type"` // 物业类型
+	Count        int64  `json:"count"`         // 数量
 }
 
-// TransactionDistribution 交易分布统计
-type TransactionDistribution struct {
-	ByDistrict []*DistrictTransactionItem `json:"by_district"`
-	ByEstate   []*EstateTransactionItem   `json:"by_estate"`
-	ByMonth    []*MonthTransactionItem    `json:"by_month"`
+// DistrictStat 地区统计
+type DistrictStat struct {
+	DistrictID   uint   `json:"district_id"`   // 地区ID
+	DistrictName string `json:"district_name"` // 地区名称
+	Count        int64  `json:"count"`         // 数量
 }
 
-// DistrictTransactionItem 地区交易统计项
-type DistrictTransactionItem struct {
-	DistrictID    uint    `json:"district_id"`
-	DistrictName  string  `json:"district_name"`
-	Count         int     `json:"count"`
-	TotalAmount   float64 `json:"total_amount"`
-	AverageAmount float64 `json:"average_amount"`
-}
-
-// EstateTransactionItem 屋苑交易统计项
-type EstateTransactionItem struct {
-	EstateID      uint    `json:"estate_id"`
-	EstateName    string  `json:"estate_name"`
-	Count         int     `json:"count"`
-	TotalAmount   float64 `json:"total_amount"`
-	AverageAmount float64 `json:"average_amount"`
-}
-
-// MonthTransactionItem 月度交易统计项
-type MonthTransactionItem struct {
-	Month         string  `json:"month"` // 格式：2006-01
-	Count         int     `json:"count"`
-	TotalAmount   float64 `json:"total_amount"`
-	AverageAmount float64 `json:"average_amount"`
-}
-
-// TransactionStatisticsResponse 交易统计响应
+// TransactionStatisticsResponse 成交统计响应
 type TransactionStatisticsResponse struct {
-	Summary      *TransactionStatisticsSummary `json:"summary"`
-	TrendData    []*TransactionTrendItem       `json:"trend_data"`
-	Distribution *TransactionDistribution      `json:"distribution"`
+	// 成交数量统计
+	TotalTransactions      int64 `json:"total_transactions"`       // 总成交数
+	SaleTransactions       int64 `json:"sale_transactions"`        // 买卖成交数
+	RentTransactions       int64 `json:"rent_transactions"`        // 租赁成交数
+	TransactionsThisWeek   int64 `json:"transactions_this_week"`   // 本周成交数
+	TransactionsThisMonth  int64 `json:"transactions_this_month"`  // 本月成交数
+	TransactionsThisYear   int64 `json:"transactions_this_year"`   // 本年成交数
+
+	// 成交金额统计
+	TotalTransactionValue float64 `json:"total_transaction_value"` // 总成交金额
+	AvgTransactionPrice   float64 `json:"avg_transaction_price"`   // 平均成交价
+	MaxTransactionPrice   float64 `json:"max_transaction_price"`   // 最高成交价
+	MinTransactionPrice   float64 `json:"min_transaction_price"`   // 最低成交价
+
+	// 地区成交统计
+	DistrictTransactions []DistrictTransactionStat `json:"district_transactions"` // 地区成交统计
+
+	// 物业类型成交统计
+	PropertyTypeTransactions []PropertyTypeTransactionStat `json:"property_type_transactions"` // 物业类型成交统计
+
+	// 时间趋势 (最近12个月)
+	MonthlyTrend []MonthlyTransactionStat `json:"monthly_trend"` // 月度趋势
+
+	// 时间范围
+	StartDate  *string `json:"start_date,omitempty"`  // 统计开始日期
+	EndDate    *string `json:"end_date,omitempty"`    // 统计结束日期
+	DistrictID *uint   `json:"district_id,omitempty"` // 地区ID
 }
 
-// ============ 用户统计响应 ============
-
-// UserStatisticsSummary 用户统计汇总
-type UserStatisticsSummary struct {
-	TotalCount        int     `json:"total_count"`
-	ActiveCount       int     `json:"active_count"`
-	NewUsersToday     int     `json:"new_users_today"`
-	NewUsersThisWeek  int     `json:"new_users_this_week"`
-	NewUsersThisMonth int     `json:"new_users_this_month"`
-	VerifiedCount     int     `json:"verified_count"`
-	RetentionRate     float64 `json:"retention_rate"` // 留存率
+// DistrictTransactionStat 地区成交统计
+type DistrictTransactionStat struct {
+	DistrictID          uint    `json:"district_id"`           // 地区ID
+	DistrictName        string  `json:"district_name"`         // 地区名称
+	TransactionCount    int64   `json:"transaction_count"`     // 成交数量
+	TotalValue          float64 `json:"total_value"`           // 总成交金额
+	AvgPrice            float64 `json:"avg_price"`             // 平均价格
 }
 
-// UserDistribution 用户分布统计
-type UserDistribution struct {
-	ByRole               []*UserRoleStatItem               `json:"by_role"`
-	ByStatus             []*UserStatusStatItem             `json:"by_status"`
-	ByRegistrationSource []*RegistrationSourceStatItem     `json:"by_registration_source"`
+// PropertyTypeTransactionStat 物业类型成交统计
+type PropertyTypeTransactionStat struct {
+	PropertyType     string  `json:"property_type"`      // 物业类型
+	TransactionCount int64   `json:"transaction_count"`  // 成交数量
+	TotalValue       float64 `json:"total_value"`        // 总成交金额
+	AvgPrice         float64 `json:"avg_price"`          // 平均价格
 }
 
-// UserRoleStatItem 用户角色统计项
-type UserRoleStatItem struct {
-	Role       string  `json:"role"`
-	Count      int     `json:"count"`
-	Percentage float64 `json:"percentage"`
-}
-
-// UserStatusStatItem 用户状态统计项
-type UserStatusStatItem struct {
-	Status     string  `json:"status"`
-	Count      int     `json:"count"`
-	Percentage float64 `json:"percentage"`
-}
-
-// RegistrationSourceStatItem 注册来源统计项
-type RegistrationSourceStatItem struct {
-	Source     string  `json:"source"` // google, facebook, email, phone
-	Count      int     `json:"count"`
-	Percentage float64 `json:"percentage"`
+// MonthlyTransactionStat 月度成交统计
+type MonthlyTransactionStat struct {
+	Month            string  `json:"month"`             // 月份 (YYYY-MM)
+	TransactionCount int64   `json:"transaction_count"` // 成交数量
+	TotalValue       float64 `json:"total_value"`       // 总成交金额
+	AvgPrice         float64 `json:"avg_price"`         // 平均价格
 }
 
 // UserStatisticsResponse 用户统计响应
 type UserStatisticsResponse struct {
-	Summary      *UserStatisticsSummary `json:"summary"`
-	TrendData    []*TrendItem           `json:"trend_data"`
-	Distribution *UserDistribution      `json:"distribution"`
+	// 用户总数统计
+	TotalUsers      int64 `json:"total_users"`       // 总用户数
+	IndividualUsers int64 `json:"individual_users"`  // 普通用户数
+	AgencyUsers     int64 `json:"agency_users"`      // 代理公司数
+	ActiveUsers     int64 `json:"active_users"`      // 活跃用户数
+	InactiveUsers   int64 `json:"inactive_users"`    // 停用用户数
+	SuspendedUsers  int64 `json:"suspended_users"`   // 暂停用户数
+
+	// 新增用户统计
+	NewUsersThisWeek  int64 `json:"new_users_this_week"`  // 本周新增
+	NewUsersThisMonth int64 `json:"new_users_this_month"` // 本月新增
+	NewUsersThisYear  int64 `json:"new_users_this_year"`  // 本年新增
+
+	// 用户活跃度
+	VerifiedEmailUsers int64 `json:"verified_email_users"` // 已验证邮箱用户数
+	UsersWithListings  int64 `json:"users_with_listings"`  // 有发布记录的用户数
+
+	// 代理统计
+	TotalAgents    int64 `json:"total_agents"`     // 总代理人数
+	VerifiedAgents int64 `json:"verified_agents"`  // 已验证代理数
+	ActiveAgents   int64 `json:"active_agents"`    // 活跃代理数
+
+	// 用户登录统计
+	UsersLoggedInToday     int64 `json:"users_logged_in_today"`      // 今日登录用户数
+	UsersLoggedInThisWeek  int64 `json:"users_logged_in_this_week"`  // 本周登录用户数
+	UsersLoggedInThisMonth int64 `json:"users_logged_in_this_month"` // 本月登录用户数
+
+	// 时间趋势 (最近12个月)
+	MonthlyUserGrowth []MonthlyUserGrowthStat `json:"monthly_user_growth"` // 月度用户增长
+
+	// 时间范围
+	StartDate *string `json:"start_date,omitempty"` // 统计开始日期
+	EndDate   *string `json:"end_date,omitempty"`   // 统计结束日期
+}
+
+// MonthlyUserGrowthStat 月度用户增长统计
+type MonthlyUserGrowthStat struct {
+	Month          string `json:"month"`           // 月份 (YYYY-MM)
+	NewUsers       int64  `json:"new_users"`       // 新增用户数
+	CumulativeUsers int64 `json:"cumulative_users"` // 累计用户数
+}
+
+// TimeRange 时间范围辅助结构
+type TimeRange struct {
+	StartDate time.Time
+	EndDate   time.Time
 }

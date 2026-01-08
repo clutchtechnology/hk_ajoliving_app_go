@@ -1,65 +1,47 @@
 package controllers
 
-// CartHandler Methods:
-// 0. NewCartHandler(cartService *services.CartService) -> 注入 CartService
+import (
+	"strconv"
+
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/gin-gonic/gin"
+)
+
+// CartController Methods:
+// 0. NewCartController(service *services.CartService) -> 注入 CartService
 // 1. GetCart(c *gin.Context) -> 获取购物车
 // 2. AddToCart(c *gin.Context) -> 添加到购物车
 // 3. UpdateCartItem(c *gin.Context) -> 更新购物车项
 // 4. RemoveFromCart(c *gin.Context) -> 移除购物车项
 // 5. ClearCart(c *gin.Context) -> 清空购物车
 
-import (
-	"errors"
-	"strconv"
-
-	"github.com/gin-gonic/gin"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
-)
-
-// CartHandlerInterface 购物车处理器接口
-type CartHandlerInterface interface {
-	GetCart(c *gin.Context)        // 1. 获取购物车
-	AddToCart(c *gin.Context)      // 2. 添加到购物车
-	UpdateCartItem(c *gin.Context) // 3. 更新购物车项
-	RemoveFromCart(c *gin.Context) // 4. 移除购物车项
-	ClearCart(c *gin.Context)      // 5. 清空购物车
+type CartController struct {
+	service *services.CartService
 }
 
-// CartHandler 购物车处理器
-type CartHandler struct {
-	cartService *services.CartService
-}
-
-// 0. NewCartHandler 注入 CartService
-func NewCartHandler(cartService *services.CartService) *CartHandler {
-	return &CartHandler{
-		cartService: cartService,
-	}
+// 0. NewCartController 构造函数
+func NewCartController(service *services.CartService) *CartController {
+	return &CartController{service: service}
 }
 
 // 1. GetCart 获取购物车
-// GetCart godoc
-// @Summary      获取购物车
-// @Description  获取当前用户的购物车内容
-// @Tags         Cart
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Success      200  {object}  models.Response{data=models.CartResponse}
-// @Failure      401  {object}  models.Response
-// @Failure      500  {object}  models.Response
-// @Router       /api/v1/cart [get]
-func (h *CartHandler) GetCart(c *gin.Context) {
-	// 获取当前用户ID
+// @Summary 获取购物车
+// @Tags Cart
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} tools.Response{data=models.CartResponse}
+// @Router /api/v1/cart [get]
+func (ctrl *CartController) GetCart(c *gin.Context) {
+	// 从JWT中获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		tools.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 
-	cart, err := h.cartService.GetCart(c.Request.Context(), userID.(uint))
+	cart, err := ctrl.service.GetCart(c.Request.Context(), userID.(uint))
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
@@ -69,72 +51,63 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 }
 
 // 2. AddToCart 添加到购物车
-// AddToCart godoc
-// @Summary      添加到购物车
-// @Description  添加家具商品到购物车
-// @Tags         Cart
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        body  body      models.AddToCartRequest  true  "购物车项信息"
-// @Success      201   {object}  models.Response{data=models.AddToCartResponse}
-// @Failure      400   {object}  models.Response
-// @Failure      401   {object}  models.Response
-// @Failure      404   {object}  models.Response
-// @Failure      500   {object}  models.Response
-// @Router       /api/v1/cart/items [post]
-func (h *CartHandler) AddToCart(c *gin.Context) {
+// @Summary 添加到购物车
+// @Tags Cart
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body models.AddToCartRequest true "添加到购物车请求"
+// @Success 201 {object} tools.Response{data=models.CartItemResponse}
+// @Router /api/v1/cart/items [post]
+func (ctrl *CartController) AddToCart(c *gin.Context) {
+	// 从JWT中获取用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		tools.Unauthorized(c, "user not authenticated")
+		return
+	}
+
 	var req models.AddToCartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 获取当前用户ID
-	userID, exists := c.Get("user_id")
-	if !exists {
-		tools.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	result, err := h.cartService.AddToCart(c.Request.Context(), userID.(uint), &req)
+	item, err := ctrl.service.AddToCart(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
-		if err == services.ErrFurnitureNotFound {
-			tools.NotFound(c, "Furniture not found")
-			return
-		}
-		if err == services.ErrFurnitureNotAvailable {
-			tools.BadRequest(c, "Furniture is not available")
+		if err == tools.ErrNotFound {
+			tools.NotFound(c, "furniture not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Created(c, result)
+	tools.Created(c, item)
 }
 
 // 3. UpdateCartItem 更新购物车项
-// UpdateCartItem godoc
-// @Summary      更新购物车项
-// @Description  更新购物车中的商品数量
-// @Tags         Cart
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id    path      int                              true  "购物车项ID"
-// @Param        body  body      models.UpdateCartItemRequest  true  "更新信息"
-// @Success      200   {object}  models.Response{data=models.UpdateCartItemResponse}
-// @Failure      400   {object}  models.Response
-// @Failure      401   {object}  models.Response
-// @Failure      403   {object}  models.Response
-// @Failure      404   {object}  models.Response
-// @Failure      500   {object}  models.Response
-// @Router       /api/v1/cart/items/{id} [put]
-func (h *CartHandler) UpdateCartItem(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+// @Summary 更新购物车项
+// @Tags Cart
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "购物车项ID"
+// @Param body body models.UpdateCartItemRequest true "更新购物车项请求"
+// @Success 200 {object} tools.Response{data=models.CartItemResponse}
+// @Router /api/v1/cart/items/{id} [put]
+func (ctrl *CartController) UpdateCartItem(c *gin.Context) {
+	// 从JWT中获取用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		tools.Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	// 解析购物车项ID
+	itemID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		tools.BadRequest(c, "Invalid cart item ID")
+		tools.BadRequest(c, "invalid cart item id")
 		return
 	}
 
@@ -144,102 +117,83 @@ func (h *CartHandler) UpdateCartItem(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
-	userID, exists := c.Get("user_id")
-	if !exists {
-		tools.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	result, err := h.cartService.UpdateCartItem(c.Request.Context(), userID.(uint), uint(id), &req)
+	item, err := ctrl.service.UpdateCartItem(c.Request.Context(), userID.(uint), uint(itemID), &req)
 	if err != nil {
-		if err == services.ErrCartItemNotFound {
-			tools.NotFound(c, "Cart item not found")
+		if err == tools.ErrNotFound {
+			tools.NotFound(c, "cart item not found")
 			return
 		}
-		if err == services.ErrNotCartItemOwner {
-			tools.Forbidden(c, "You are not the owner of this cart item")
+		if err == tools.ErrForbidden {
+			tools.Forbidden(c, "not allowed to update this cart item")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, result)
+	tools.Success(c, item)
 }
 
 // 4. RemoveFromCart 移除购物车项
-// RemoveFromCart godoc
-// @Summary      移除购物车项
-// @Description  从购物车中移除指定商品
-// @Tags         Cart
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id   path      int  true  "购物车项ID"
-// @Success      200  {object}  models.Response
-// @Failure      400  {object}  models.Response
-// @Failure      401  {object}  models.Response
-// @Failure      403  {object}  models.Response
-// @Failure      404  {object}  models.Response
-// @Failure      500  {object}  models.Response
-// @Router       /api/v1/cart/items/{id} [delete]
-func (h *CartHandler) RemoveFromCart(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		tools.BadRequest(c, "Invalid cart item ID")
-		return
-	}
-
-	// 获取当前用户ID
+// @Summary 移除购物车项
+// @Tags Cart
+// @Security BearerAuth
+// @Produce json
+// @Param id path int true "购物车项ID"
+// @Success 200 {object} tools.Response
+// @Router /api/v1/cart/items/{id} [delete]
+func (ctrl *CartController) RemoveFromCart(c *gin.Context) {
+	// 从JWT中获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		tools.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 
-	err = h.cartService.RemoveFromCart(c.Request.Context(), userID.(uint), uint(id))
+	// 解析购物车项ID
+	itemID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		if err == services.ErrCartItemNotFound {
-			tools.NotFound(c, "Cart item not found")
+		tools.BadRequest(c, "invalid cart item id")
+		return
+	}
+
+	err = ctrl.service.RemoveFromCart(c.Request.Context(), userID.(uint), uint(itemID))
+	if err != nil {
+		if err == tools.ErrNotFound {
+			tools.NotFound(c, "cart item not found")
 			return
 		}
-		if err == services.ErrNotCartItemOwner {
-			tools.Forbidden(c, "You are not the owner of this cart item")
+		if err == tools.ErrForbidden {
+			tools.Forbidden(c, "not allowed to remove this cart item")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, gin.H{"message": "Cart item removed successfully"})
+	tools.Success(c, gin.H{"message": "cart item removed successfully"})
 }
 
 // 5. ClearCart 清空购物车
-// ClearCart godoc
-// @Summary      清空购物车
-// @Description  清空当前用户的购物车
-// @Tags         Cart
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Success      200  {object}  models.Response
-// @Failure      401  {object}  models.Response
-// @Failure      500  {object}  models.Response
-// @Router       /api/v1/cart [delete]
-func (h *CartHandler) ClearCart(c *gin.Context) {
-	// 获取当前用户ID
+// @Summary 清空购物车
+// @Tags Cart
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} tools.Response
+// @Router /api/v1/cart [delete]
+func (ctrl *CartController) ClearCart(c *gin.Context) {
+	// 从JWT中获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		tools.Unauthorized(c, "User not authenticated")
+		tools.Unauthorized(c, "user not authenticated")
 		return
 	}
 
-	err := h.cartService.ClearCart(c.Request.Context(), userID.(uint))
+	err := ctrl.service.ClearCart(c.Request.Context(), userID.(uint))
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, gin.H{"message": "Cart cleared successfully"})
+	tools.Success(c, gin.H{"message": "cart cleared successfully"})
 }

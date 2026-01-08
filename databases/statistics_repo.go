@@ -3,545 +3,365 @@ package databases
 import (
 	"context"
 	"time"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"gorm.io/gorm"
 )
 
-// StatisticsRepository 统计数据仓库接口
-type StatisticsRepository interface {
-	// 房产统计
-	GetPropertyCount(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (int64, error)
-	GetPropertyCountByStatus(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]int64, error)
-	GetPropertyCountByListingType(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]int64, error)
-	GetPropertyPriceStats(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]float64, error)
-	GetPropertyCountByDistrict(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error)
-	GetPropertyCountByType(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error)
-	GetPropertyCountByBedrooms(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error)
-	GetPropertyTrendData(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error)
-
-	// 成交统计
-	GetTransactionCount(ctx context.Context, filter *models.GetTransactionStatisticsRequest) (int64, error)
-	GetTransactionAmountStats(ctx context.Context, filter *models.GetTransactionStatisticsRequest) (map[string]float64, error)
-	GetTransactionCountByDistrict(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error)
-	GetTransactionCountByEstate(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error)
-	GetTransactionTrendData(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error)
-
-	// 用户统计
-	GetUserCount(ctx context.Context, filter *models.GetUserStatisticsRequest) (int64, error)
-	GetUserCountByStatus(ctx context.Context, filter *models.GetUserStatisticsRequest) (map[string]int64, error)
-	GetUserCountByRole(ctx context.Context, filter *models.GetUserStatisticsRequest) (map[string]int64, error)
-	GetUserTrendData(ctx context.Context, filter *models.GetUserStatisticsRequest) ([]map[string]interface{}, error)
-
-	// 代理人统计
-	GetAgentCount(ctx context.Context) (int64, error)
-	GetAgentAverageRating(ctx context.Context) (float64, error)
-}
-
-type statisticsRepository struct {
+// StatisticsRepo 统计数据仓储
+type StatisticsRepo struct {
 	db *gorm.DB
 }
 
-// NewStatisticsRepository 创建统计数据仓库实例
-func NewStatisticsRepository(db *gorm.DB) StatisticsRepository {
-	return &statisticsRepository{db: db}
+// NewStatisticsRepo 创建统计数据仓储实例
+func NewStatisticsRepo(db *gorm.DB) *StatisticsRepo {
+	return &StatisticsRepo{db: db}
 }
 
-// ========== 房产统计 ==========
+// GetOverviewStatistics 获取总览统计
+func (r *StatisticsRepo) GetOverviewStatistics(ctx context.Context, startDate, endDate *time.Time) (*models.OverviewStatisticsResponse, error) {
+	var stats models.OverviewStatisticsResponse
 
-func (r *statisticsRepository) GetPropertyCount(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (int64, error) {
-	var count int64
+	// 房产统计
+	r.db.WithContext(ctx).Model(&models.Property{}).Count(&stats.TotalProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("listing_type = ?", "sale").Count(&stats.SaleProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("listing_type = ?", "rent").Count(&stats.RentProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("status = ?", "available").Count(&stats.AvailableProperties)
+
+	// 本周新增房产
+	weekAgo := time.Now().AddDate(0, 0, -7)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("created_at >= ?", weekAgo).Count(&stats.NewPropertiesThisWeek)
+
+	// 用户统计
+	r.db.WithContext(ctx).Model(&models.User{}).Count(&stats.TotalUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("user_type = ?", "individual").Count(&stats.IndividualUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("user_type = ?", "agency").Count(&stats.AgencyUsers)
+
+	// 本月新增用户
+	monthAgo := time.Now().AddDate(0, -1, 0)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("created_at >= ?", monthAgo).Count(&stats.NewUsersThisMonth)
+
+	// 代理统计
+	r.db.WithContext(ctx).Model(&models.Agent{}).Count(&stats.TotalAgents)
+	r.db.WithContext(ctx).Model(&models.Agent{}).Where("is_verified = ?", true).Count(&stats.VerifiedAgents)
+	r.db.WithContext(ctx).Model(&models.Agent{}).Where("status = ?", "active").Count(&stats.ActiveAgents)
+
+	// 屋苑统计
+	r.db.WithContext(ctx).Model(&models.Estate{}).Count(&stats.TotalEstates)
+
+	// 家具统计
+	r.db.WithContext(ctx).Model(&models.Furniture{}).Count(&stats.TotalFurniture)
+	r.db.WithContext(ctx).Model(&models.Furniture{}).Where("status = ?", "available").Count(&stats.AvailableFurniture)
+
+	return &stats, nil
+}
+
+// GetPropertyStatistics 获取房产统计
+func (r *StatisticsRepo) GetPropertyStatistics(ctx context.Context, startDate, endDate *time.Time, districtID *uint) (*models.PropertyStatisticsResponse, error) {
+	var stats models.PropertyStatisticsResponse
+
 	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Count(&count).Error; err != nil {
-		return 0, err
+	if startDate != nil {
+		query = query.Where("created_at >= ?", startDate)
 	}
-	return count, nil
-}
-
-func (r *statisticsRepository) GetPropertyCountByStatus(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]int64, error) {
-	type Result struct {
-		Status string
-		Count  int64
+	if endDate != nil {
+		query = query.Where("created_at <= ?", endDate)
 	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Select("status, COUNT(*) as count").Group("status").Scan(&results).Error; err != nil {
-		return nil, err
+	if districtID != nil {
+		query = query.Where("district_id = ?", *districtID)
 	}
 
-	statusMap := make(map[string]int64)
-	for _, r := range results {
-		statusMap[r.Status] = r.Count
-	}
-	return statusMap, nil
-}
+	// 房产数量统计
+	query.Count(&stats.TotalProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("listing_type = ?", "sale").Count(&stats.SaleProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("listing_type = ?", "rent").Count(&stats.RentProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("status = ?", "available").Count(&stats.AvailableProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("status = ?", "pending").Count(&stats.PendingProperties)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("status IN ?", []string{"sold", "rented"}).Count(&stats.SoldProperties)
 
-func (r *statisticsRepository) GetPropertyCountByListingType(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]int64, error) {
-	type Result struct {
-		ListingType string
-		Count       int64
+	// 价格统计
+	var saleStats struct {
+		AvgPrice float64
+		MaxPrice float64
+		MinPrice float64
 	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Select("listing_type, COUNT(*) as count").Group("listing_type").Scan(&results).Error; err != nil {
-		return nil, err
-	}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("listing_type = ?", "sale").
+		Select("AVG(price) as avg_price, MAX(price) as max_price, MIN(price) as min_price").
+		Scan(&saleStats)
+	stats.AvgSalePrice = saleStats.AvgPrice
+	stats.MaxSalePrice = saleStats.MaxPrice
+	stats.MinSalePrice = saleStats.MinPrice
 
-	typeMap := make(map[string]int64)
-	for _, r := range results {
-		typeMap[r.ListingType] = r.Count
+	var rentStats struct {
+		AvgPrice float64
+		MaxPrice float64
+		MinPrice float64
 	}
-	return typeMap, nil
-}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("listing_type = ?", "rent").
+		Select("AVG(price) as avg_price, MAX(price) as max_price, MIN(price) as min_price").
+		Scan(&rentStats)
+	stats.AvgRentPrice = rentStats.AvgPrice
+	stats.MaxRentPrice = rentStats.MaxPrice
+	stats.MinRentPrice = rentStats.MinPrice
 
-func (r *statisticsRepository) GetPropertyPriceStats(ctx context.Context, filter *models.GetPropertyStatisticsRequest) (map[string]float64, error) {
-	type Result struct {
-		Total   float64
-		Average float64
-		Max     float64
-		Min     float64
+	// 面积统计
+	var areaStats struct {
+		AvgArea float64
+		MaxArea float64
+		MinArea float64
 	}
-	var result Result
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Select("SUM(price) as total, AVG(price) as average, MAX(price) as max, MIN(price) as min").Scan(&result).Error; err != nil {
-		return nil, err
-	}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("AVG(area) as avg_area, MAX(area) as max_area, MIN(area) as min_area").
+		Scan(&areaStats)
+	stats.AvgArea = areaStats.AvgArea
+	stats.MaxArea = areaStats.MaxArea
+	stats.MinArea = areaStats.MinArea
 
-	return map[string]float64{
-		"total":   result.Total,
-		"average": result.Average,
-		"max":     result.Max,
-		"min":     result.Min,
-	}, nil
-}
+	// 房间数分布
+	var bedroomDist []models.BedroomStat
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("bedrooms, COUNT(*) as count").
+		Group("bedrooms").
+		Order("bedrooms").
+		Scan(&bedroomDist)
+	stats.BedroomDistribution = bedroomDist
 
-func (r *statisticsRepository) GetPropertyCountByDistrict(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error) {
-	type Result struct {
+	// 物业类型分布
+	var propertyTypeDist []models.PropertyTypeStat
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("property_type, COUNT(*) as count").
+		Group("property_type").
+		Order("count DESC").
+		Scan(&propertyTypeDist)
+	stats.PropertyTypeDistribution = propertyTypeDist
+
+	// 地区分布
+	var districtDist []struct {
 		DistrictID   uint
 		DistrictName string
 		Count        int64
-		AveragePrice float64
 	}
-	var results []Result
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("properties.district_id, districts.name_zh as district_name, COUNT(*) as count").
+		Joins("LEFT JOIN districts ON properties.district_id = districts.id").
+		Group("properties.district_id, districts.name_zh").
+		Order("count DESC").
+		Limit(10).
+		Scan(&districtDist)
+
+	for _, d := range districtDist {
+		stats.DistrictDistribution = append(stats.DistrictDistribution, models.DistrictStat{
+			DistrictID:   d.DistrictID,
+			DistrictName: d.DistrictName,
+			Count:        d.Count,
+		})
+	}
+
+	// 时间趋势
+	weekAgo := time.Now().AddDate(0, 0, -7)
+	monthAgo := time.Now().AddDate(0, -1, 0)
+	yearAgo := time.Now().AddDate(-1, 0, 0)
+
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("created_at >= ?", weekAgo).Count(&stats.NewPropertiesThisWeek)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("created_at >= ?", monthAgo).Count(&stats.NewPropertiesThisMonth)
+	r.db.WithContext(ctx).Model(&models.Property{}).Where("created_at >= ?", yearAgo).Count(&stats.NewPropertiesThisYear)
+
+	// 浏览与收藏统计
+	var viewStats struct {
+		TotalViews     int64
+		TotalFavorites int64
+		AvgViews       float64
+		AvgFavorites   float64
+	}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("SUM(view_count) as total_views, SUM(favorite_count) as total_favorites, AVG(view_count) as avg_views, AVG(favorite_count) as avg_favorites").
+		Scan(&viewStats)
+	stats.TotalViews = viewStats.TotalViews
+	stats.TotalFavorites = viewStats.TotalFavorites
+	stats.AvgViews = viewStats.AvgViews
+	stats.AvgFavorites = viewStats.AvgFavorites
+
+	return &stats, nil
+}
+
+// GetTransactionStatistics 获取成交统计
+func (r *StatisticsRepo) GetTransactionStatistics(ctx context.Context, startDate, endDate *time.Time, districtID *uint) (*models.TransactionStatisticsResponse, error) {
+	var stats models.TransactionStatisticsResponse
+
+	// Note: 由于数据库中没有 transactions 表，这里使用 properties 表的 sold/rented 状态模拟
+	// 实际应用中需要创建独立的 transactions 表
+
 	query := r.db.WithContext(ctx).Model(&models.Property{}).
-		Select("properties.district_id, districts.name_zh_hant as district_name, COUNT(*) as count, AVG(properties.price) as average_price").
-		Joins("LEFT JOIN districts ON properties.district_id = districts.id")
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Group("properties.district_id, districts.name_zh_hant").Scan(&results).Error; err != nil {
-		return nil, err
+		Where("status IN ?", []string{"sold", "rented"})
+
+	if startDate != nil {
+		query = query.Where("updated_at >= ?", startDate)
+	}
+	if endDate != nil {
+		query = query.Where("updated_at <= ?", endDate)
+	}
+	if districtID != nil {
+		query = query.Where("district_id = ?", *districtID)
 	}
 
-	var output []map[string]interface{}
-	for _, r := range results {
-		output = append(output, map[string]interface{}{
-			"district_id":    r.DistrictID,
-			"district_name":  r.DistrictName,
-			"count":          r.Count,
-			"average_price":  r.AveragePrice,
-		})
-	}
-	return output, nil
-}
+	// 成交数量统计
+	query.Count(&stats.TotalTransactions)
 
-func (r *statisticsRepository) GetPropertyCountByType(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error) {
-	type Result struct {
-		PropertyType string
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("listing_type = ? AND status = ?", "sale", "sold").
+		Count(&stats.SaleTransactions)
+
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("listing_type = ? AND status = ?", "rent", "rented").
+		Count(&stats.RentTransactions)
+
+	// 时间趋势
+	weekAgo := time.Now().AddDate(0, 0, -7)
+	monthAgo := time.Now().AddDate(0, -1, 0)
+	yearAgo := time.Now().AddDate(-1, 0, 0)
+
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("status IN ? AND updated_at >= ?", []string{"sold", "rented"}, weekAgo).
+		Count(&stats.TransactionsThisWeek)
+
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("status IN ? AND updated_at >= ?", []string{"sold", "rented"}, monthAgo).
+		Count(&stats.TransactionsThisMonth)
+
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("status IN ? AND updated_at >= ?", []string{"sold", "rented"}, yearAgo).
+		Count(&stats.TransactionsThisYear)
+
+	// 成交金额统计
+	var priceStats struct {
+		TotalValue float64
+		AvgPrice   float64
+		MaxPrice   float64
+		MinPrice   float64
+	}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Where("status IN ?", []string{"sold", "rented"}).
+		Select("SUM(price) as total_value, AVG(price) as avg_price, MAX(price) as max_price, MIN(price) as min_price").
+		Scan(&priceStats)
+	stats.TotalTransactionValue = priceStats.TotalValue
+	stats.AvgTransactionPrice = priceStats.AvgPrice
+	stats.MaxTransactionPrice = priceStats.MaxPrice
+	stats.MinTransactionPrice = priceStats.MinPrice
+
+	// 地区成交统计
+	var districtTrans []struct {
+		DistrictID   uint
+		DistrictName string
 		Count        int64
+		TotalValue   float64
+		AvgPrice     float64
 	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Select("property_type, COUNT(*) as count").Group("property_type").Scan(&results).Error; err != nil {
-		return nil, err
-	}
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("properties.district_id, districts.name_zh as district_name, COUNT(*) as count, SUM(properties.price) as total_value, AVG(properties.price) as avg_price").
+		Joins("LEFT JOIN districts ON properties.district_id = districts.id").
+		Where("properties.status IN ?", []string{"sold", "rented"}).
+		Group("properties.district_id, districts.name_zh").
+		Order("count DESC").
+		Limit(10).
+		Scan(&districtTrans)
 
-	var output []map[string]interface{}
-	for _, r := range results {
-		output = append(output, map[string]interface{}{
-			"property_type": r.PropertyType,
-			"count":         r.Count,
+	for _, d := range districtTrans {
+		stats.DistrictTransactions = append(stats.DistrictTransactions, models.DistrictTransactionStat{
+			DistrictID:       d.DistrictID,
+			DistrictName:     d.DistrictName,
+			TransactionCount: d.Count,
+			TotalValue:       d.TotalValue,
+			AvgPrice:         d.AvgPrice,
 		})
 	}
-	return output, nil
+
+	// 物业类型成交统计
+	var propertyTypeTrans []models.PropertyTypeTransactionStat
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("property_type, COUNT(*) as transaction_count, SUM(price) as total_value, AVG(price) as avg_price").
+		Where("status IN ?", []string{"sold", "rented"}).
+		Group("property_type").
+		Order("transaction_count DESC").
+		Scan(&propertyTypeTrans)
+	stats.PropertyTypeTransactions = propertyTypeTrans
+
+	// 月度趋势（最近12个月）
+	var monthlyTrend []models.MonthlyTransactionStat
+	r.db.WithContext(ctx).Model(&models.Property{}).
+		Select("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as transaction_count, SUM(price) as total_value, AVG(price) as avg_price").
+		Where("status IN ? AND updated_at >= ?", []string{"sold", "rented"}, time.Now().AddDate(0, -12, 0)).
+		Group("DATE_FORMAT(updated_at, '%Y-%m')").
+		Order("month DESC").
+		Scan(&monthlyTrend)
+	stats.MonthlyTrend = monthlyTrend
+
+	return &stats, nil
 }
 
-func (r *statisticsRepository) GetPropertyCountByBedrooms(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error) {
-	type Result struct {
-		Bedrooms int
-		Count    int64
-	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-	if err := query.Select("bedrooms, COUNT(*) as count").Group("bedrooms").Order("bedrooms ASC").Scan(&results).Error; err != nil {
-		return nil, err
-	}
+// GetUserStatistics 获取用户统计
+func (r *StatisticsRepo) GetUserStatistics(ctx context.Context, startDate, endDate *time.Time) (*models.UserStatisticsResponse, error) {
+	var stats models.UserStatisticsResponse
 
-	var output []map[string]interface{}
-	for _, r := range results {
-		output = append(output, map[string]interface{}{
-			"bedrooms": r.Bedrooms,
-			"count":    r.Count,
-		})
-	}
-	return output, nil
-}
-
-func (r *statisticsRepository) GetPropertyTrendData(ctx context.Context, filter *models.GetPropertyStatisticsRequest) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	query := r.db.WithContext(ctx).Model(&models.Property{})
-	query = r.applyPropertyFilters(query, filter)
-
-	// 根据 period 分组
-	var period string
-	if filter.Period != nil {
-		period = *filter.Period
-	}
-	switch period {
-	case "day":
-		query = query.Select("DATE(created_at) as period, COUNT(*) as count, AVG(price) as value").
-			Group("DATE(created_at)").
-			Order("DATE(created_at) ASC")
-	case "week":
-		query = query.Select("DATE_TRUNC('week', created_at) as period, COUNT(*) as count, AVG(price) as value").
-			Group("DATE_TRUNC('week', created_at)").
-			Order("DATE_TRUNC('week', created_at) ASC")
-	case "month":
-		query = query.Select("DATE_TRUNC('month', created_at) as period, COUNT(*) as count, AVG(price) as value").
-			Group("DATE_TRUNC('month', created_at)").
-			Order("DATE_TRUNC('month', created_at) ASC")
-	case "year":
-		query = query.Select("DATE_TRUNC('year', created_at) as period, COUNT(*) as count, AVG(price) as value").
-			Group("DATE_TRUNC('year', created_at)").
-			Order("DATE_TRUNC('year', created_at) ASC")
-	default: // 默认按月
-		query = query.Select("DATE_TRUNC('month', created_at) as period, COUNT(*) as count, AVG(price) as value").
-			Group("DATE_TRUNC('month', created_at)").
-			Order("DATE_TRUNC('month', created_at) ASC")
-	}
-
-	if err := query.Scan(&results).Error; err != nil {
-		return nil, err
-	}
-	return results, nil
-}
-
-func (r *statisticsRepository) applyPropertyFilters(query *gorm.DB, filter *models.GetPropertyStatisticsRequest) *gorm.DB {
-	if filter.DistrictID != nil {
-		query = query.Where("district_id = ?", *filter.DistrictID)
-	}
-	if filter.EstateID != nil {
-		query = query.Where("estate_id = ?", *filter.EstateID)
-	}
-	if filter.ListingType != nil {
-		query = query.Where("listing_type = ?", *filter.ListingType)
-	}
-	if filter.StartDate != nil {
-		query = query.Where("created_at >= ?", *filter.StartDate)
-	}
-	if filter.EndDate != nil {
-		query = query.Where("created_at <= ?", *filter.EndDate)
-	}
-	return query
-}
-
-// ========== 成交统计 ==========
-
-func (r *statisticsRepository) GetTransactionCount(ctx context.Context, filter *models.GetTransactionStatisticsRequest) (int64, error) {
-	var count int64
-	query := r.db.WithContext(ctx).Table("properties")
-	query = r.applyTransactionFilters(query, filter)
-	if err := query.Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-func (r *statisticsRepository) GetTransactionAmountStats(ctx context.Context, filter *models.GetTransactionStatisticsRequest) (map[string]float64, error) {
-	type Result struct {
-		Total   float64
-		Average float64
-		Max     float64
-		Min     float64
-	}
-	var result Result
-	query := r.db.WithContext(ctx).Table("properties")
-	query = r.applyTransactionFilters(query, filter)
-	if err := query.Select("SUM(price) as total, AVG(price) as average, MAX(price) as max, MIN(price) as min").Scan(&result).Error; err != nil {
-		return nil, err
-	}
-
-	return map[string]float64{
-		"total":   result.Total,
-		"average": result.Average,
-		"max":     result.Max,
-		"min":     result.Min,
-	}, nil
-}
-
-func (r *statisticsRepository) GetTransactionCountByDistrict(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error) {
-	type Result struct {
-		DistrictID    uint
-		DistrictName  string
-		Count         int64
-		TotalAmount   float64
-		AverageAmount float64
-	}
-	var results []Result
-	query := r.db.WithContext(ctx).Table("properties").
-		Select("properties.district_id, districts.name_zh_hant as district_name, COUNT(*) as count, SUM(properties.price) as total_amount, AVG(properties.price) as average_amount").
-		Joins("LEFT JOIN districts ON properties.district_id = districts.id")
-	query = r.applyTransactionFilters(query, filter)
-	if err := query.Group("properties.district_id, districts.name_zh_hant").Scan(&results).Error; err != nil {
-		return nil, err
-	}
-
-	var output []map[string]interface{}
-	for _, r := range results {
-		output = append(output, map[string]interface{}{
-			"district_id":    r.DistrictID,
-			"district_name":  r.DistrictName,
-			"count":          r.Count,
-			"total_amount":   r.TotalAmount,
-			"average_amount": r.AverageAmount,
-		})
-	}
-	return output, nil
-}
-
-func (r *statisticsRepository) GetTransactionCountByEstate(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error) {
-	type Result struct {
-		EstateID      uint
-		EstateName    string
-		Count         int64
-		TotalAmount   float64
-		AverageAmount float64
-	}
-	var results []Result
-	query := r.db.WithContext(ctx).Table("properties").
-		Select("properties.estate_id, estates.name_zh_hant as estate_name, COUNT(*) as count, SUM(properties.price) as total_amount, AVG(properties.price) as average_amount").
-		Joins("LEFT JOIN estates ON properties.estate_id = estates.id")
-	query = r.applyTransactionFilters(query, filter)
-	if err := query.Where("properties.estate_id IS NOT NULL").Group("properties.estate_id, estates.name_zh_hant").Limit(10).Scan(&results).Error; err != nil {
-		return nil, err
-	}
-
-	var output []map[string]interface{}
-	for _, r := range results {
-		output = append(output, map[string]interface{}{
-			"estate_id":      r.EstateID,
-			"estate_name":    r.EstateName,
-			"count":          r.Count,
-			"total_amount":   r.TotalAmount,
-			"average_amount": r.AverageAmount,
-		})
-	}
-	return output, nil
-}
-
-func (r *statisticsRepository) GetTransactionTrendData(ctx context.Context, filter *models.GetTransactionStatisticsRequest) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	query := r.db.WithContext(ctx).Table("properties")
-	query = r.applyTransactionFilters(query, filter)
-
-	// 根据 period 分组
-	var period string
-	if filter.Period != nil {
-		period = *filter.Period
-	}
-	switch period {
-	case "day":
-		query = query.Select("DATE(created_at) as period, COUNT(*) as count, SUM(price) as total_amount, AVG(price) as average_amount").
-			Group("DATE(created_at)").
-			Order("DATE(created_at) ASC")
-	case "week":
-		query = query.Select("DATE_TRUNC('week', created_at) as period, COUNT(*) as count, SUM(price) as total_amount, AVG(price) as average_amount").
-			Group("DATE_TRUNC('week', created_at)").
-			Order("DATE_TRUNC('week', created_at) ASC")
-	case "month":
-		query = query.Select("TO_CHAR(created_at, 'YYYY-MM') as period, COUNT(*) as count, SUM(price) as total_amount, AVG(price) as average_amount").
-			Group("TO_CHAR(created_at, 'YYYY-MM')").
-			Order("TO_CHAR(created_at, 'YYYY-MM') ASC")
-	case "year":
-		query = query.Select("DATE_TRUNC('year', created_at) as period, COUNT(*) as count, SUM(price) as total_amount, AVG(price) as average_amount").
-			Group("DATE_TRUNC('year', created_at)").
-			Order("DATE_TRUNC('year', created_at) ASC")
-	default: // 默认按月
-		query = query.Select("TO_CHAR(created_at, 'YYYY-MM') as period, COUNT(*) as count, SUM(price) as total_amount, AVG(price) as average_amount").
-			Group("TO_CHAR(created_at, 'YYYY-MM')").
-			Order("TO_CHAR(created_at, 'YYYY-MM') ASC")
-	}
-
-	if err := query.Scan(&results).Error; err != nil {
-		return nil, err
-	}
-	return results, nil
-}
-
-func (r *statisticsRepository) applyTransactionFilters(query *gorm.DB, filter *models.GetTransactionStatisticsRequest) *gorm.DB {
-	if filter.DistrictID != nil {
-		query = query.Where("district_id = ?", *filter.DistrictID)
-	}
-	if filter.EstateID != nil {
-		query = query.Where("estate_id = ?", *filter.EstateID)
-	}
-	if filter.ListingType != nil {
-		query = query.Where("listing_type = ?", *filter.ListingType)
-	}
-	if filter.StartDate != nil {
-		query = query.Where("created_at >= ?", *filter.StartDate)
-	}
-	if filter.EndDate != nil {
-		query = query.Where("created_at <= ?", *filter.EndDate)
-	}
-	return query
-}
-
-// ========== 用户统计 ==========
-
-func (r *statisticsRepository) GetUserCount(ctx context.Context, filter *models.GetUserStatisticsRequest) (int64, error) {
-	var count int64
 	query := r.db.WithContext(ctx).Model(&models.User{})
-	query = r.applyUserFilters(query, filter)
-	if err := query.Count(&count).Error; err != nil {
-		return 0, err
+	if startDate != nil {
+		query = query.Where("created_at >= ?", startDate)
 	}
-	return count, nil
-}
-
-func (r *statisticsRepository) GetUserCountByStatus(ctx context.Context, filter *models.GetUserStatisticsRequest) (map[string]int64, error) {
-	type Result struct {
-		Status string
-		Count  int64
-	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.User{})
-	query = r.applyUserFilters(query, filter)
-	if err := query.Select("status, COUNT(*) as count").Group("status").Scan(&results).Error; err != nil {
-		return nil, err
+	if endDate != nil {
+		query = query.Where("created_at <= ?", endDate)
 	}
 
-	statusMap := make(map[string]int64)
-	for _, r := range results {
-		statusMap[r.Status] = r.Count
-	}
-	return statusMap, nil
-}
+	// 用户总数统计
+	r.db.WithContext(ctx).Model(&models.User{}).Count(&stats.TotalUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("user_type = ?", "individual").Count(&stats.IndividualUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("user_type = ?", "agency").Count(&stats.AgencyUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("status = ?", "active").Count(&stats.ActiveUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("status = ?", "inactive").Count(&stats.InactiveUsers)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("status = ?", "suspended").Count(&stats.SuspendedUsers)
 
-func (r *statisticsRepository) GetUserCountByRole(ctx context.Context, filter *models.GetUserStatisticsRequest) (map[string]int64, error) {
-	type Result struct {
-		Role  string
-		Count int64
-	}
-	var results []Result
-	query := r.db.WithContext(ctx).Model(&models.User{})
-	query = r.applyUserFilters(query, filter)
-	if err := query.Select("role, COUNT(*) as count").Group("role").Scan(&results).Error; err != nil {
-		return nil, err
-	}
+	// 新增用户统计
+	weekAgo := time.Now().AddDate(0, 0, -7)
+	monthAgo := time.Now().AddDate(0, -1, 0)
+	yearAgo := time.Now().AddDate(-1, 0, 0)
 
-	roleMap := make(map[string]int64)
-	for _, r := range results {
-		roleMap[r.Role] = r.Count
-	}
-	return roleMap, nil
-}
+	r.db.WithContext(ctx).Model(&models.User{}).Where("created_at >= ?", weekAgo).Count(&stats.NewUsersThisWeek)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("created_at >= ?", monthAgo).Count(&stats.NewUsersThisMonth)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("created_at >= ?", yearAgo).Count(&stats.NewUsersThisYear)
 
-func (r *statisticsRepository) GetUserTrendData(ctx context.Context, filter *models.GetUserStatisticsRequest) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	query := r.db.WithContext(ctx).Model(&models.User{})
-	query = r.applyUserFilters(query, filter)
+	// 用户活跃度
+	r.db.WithContext(ctx).Model(&models.User{}).Where("email_verified = ?", true).Count(&stats.VerifiedEmailUsers)
 
-	// 根据 period 分组
-	var period string
-	if filter.Period != nil {
-		period = *filter.Period
-	}
-	switch period {
-	case "day":
-		query = query.Select("DATE(created_at) as period, COUNT(*) as count").
-			Group("DATE(created_at)").
-			Order("DATE(created_at) ASC")
-	case "week":
-		query = query.Select("DATE_TRUNC('week', created_at) as period, COUNT(*) as count").
-			Group("DATE_TRUNC('week', created_at)").
-			Order("DATE_TRUNC('week', created_at) ASC")
-	case "month":
-		query = query.Select("DATE_TRUNC('month', created_at) as period, COUNT(*) as count").
-			Group("DATE_TRUNC('month', created_at)").
-			Order("DATE_TRUNC('month', created_at) ASC")
-	case "year":
-		query = query.Select("DATE_TRUNC('year', created_at) as period, COUNT(*) as count").
-			Group("DATE_TRUNC('year', created_at)").
-			Order("DATE_TRUNC('year', created_at) ASC")
-	default: // 默认按月
-		query = query.Select("DATE_TRUNC('month', created_at) as period, COUNT(*) as count").
-			Group("DATE_TRUNC('month', created_at)").
-			Order("DATE_TRUNC('month', created_at) ASC")
-	}
+	// 有发布记录的用户数
+	r.db.WithContext(ctx).Model(&models.User{}).
+		Joins("INNER JOIN properties ON users.id = properties.publisher_id").
+		Distinct("users.id").
+		Count(&stats.UsersWithListings)
 
-	if err := query.Scan(&results).Error; err != nil {
-		return nil, err
-	}
-	return results, nil
-}
+	// 代理统计
+	r.db.WithContext(ctx).Model(&models.Agent{}).Count(&stats.TotalAgents)
+	r.db.WithContext(ctx).Model(&models.Agent{}).Where("is_verified = ?", true).Count(&stats.VerifiedAgents)
+	r.db.WithContext(ctx).Model(&models.Agent{}).Where("status = ?", "active").Count(&stats.ActiveAgents)
 
-func (r *statisticsRepository) applyUserFilters(query *gorm.DB, filter *models.GetUserStatisticsRequest) *gorm.DB {
-	if filter.StartDate != nil {
-		query = query.Where("created_at >= ?", *filter.StartDate)
-	}
-	if filter.EndDate != nil {
-		query = query.Where("created_at <= ?", *filter.EndDate)
-	}
-	return query
-}
+	// 用户登录统计
+	today := time.Now().Truncate(24 * time.Hour)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("last_login_at >= ?", today).Count(&stats.UsersLoggedInToday)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("last_login_at >= ?", weekAgo).Count(&stats.UsersLoggedInThisWeek)
+	r.db.WithContext(ctx).Model(&models.User{}).Where("last_login_at >= ?", monthAgo).Count(&stats.UsersLoggedInThisMonth)
 
-// ========== 代理人统计 ==========
+	// 月度用户增长（最近12个月）
+	var monthlyGrowth []models.MonthlyUserGrowthStat
+	r.db.WithContext(ctx).Raw(`
+		SELECT 
+			DATE_FORMAT(created_at, '%Y-%m') as month,
+			COUNT(*) as new_users,
+			(SELECT COUNT(*) FROM users u2 WHERE u2.created_at <= LAST_DAY(users.created_at)) as cumulative_users
+		FROM users
+		WHERE created_at >= ?
+		GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+		ORDER BY month DESC
+	`, time.Now().AddDate(0, -12, 0)).Scan(&monthlyGrowth)
+	stats.MonthlyUserGrowth = monthlyGrowth
 
-func (r *statisticsRepository) GetAgentCount(ctx context.Context) (int64, error) {
-	var count int64
-	if err := r.db.WithContext(ctx).Model(&models.Agent{}).Where("status = ?", "active").Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-func (r *statisticsRepository) GetAgentAverageRating(ctx context.Context) (float64, error) {
-	type Result struct {
-		AverageRating float64
-	}
-	var result Result
-	if err := r.db.WithContext(ctx).Model(&models.Agent{}).
-		Select("AVG(rating) as average_rating").
-		Where("status = ?", "active").
-		Scan(&result).Error; err != nil {
-		return 0, err
-	}
-	return result.AverageRating, nil
-}
-
-// ========== 辅助函数 ==========
-
-// GetTimeRangeForPeriod 根据 period 计算时间范围
-func GetTimeRangeForPeriod(period string) (time.Time, time.Time) {
-	now := time.Now()
-	var start time.Time
-
-	switch period {
-	case "day":
-		start = now.AddDate(0, 0, -30) // 最近30天
-	case "week":
-		start = now.AddDate(0, 0, -90) // 最近90天（约13周）
-	case "month":
-		start = now.AddDate(-1, 0, 0) // 最近1年
-	case "year":
-		start = now.AddDate(-5, 0, 0) // 最近5年
-	default:
-		start = now.AddDate(-1, 0, 0) // 默认最近1年
-	}
-
-	return start, now
+	return &stats, nil
 }

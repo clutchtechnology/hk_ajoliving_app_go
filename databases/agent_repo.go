@@ -2,187 +2,133 @@ package databases
 
 import (
 	"context"
-	"errors"
-	"gorm.io/gorm"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"gorm.io/gorm"
 )
 
-// AgentRepository 代理人数据访问接口
-type AgentRepository interface {
-	// 代理人相关
-	List(ctx context.Context, filter *models.ListAgentsRequest) ([]*models.Agent, int64, error)
-	GetByID(ctx context.Context, id uint) (*models.Agent, error)
-	GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) ([]*models.Property, int64, error)
-	
-	// 联系请求相关
-	CreateContactRequest(ctx context.Context, contactReq *models.AgentContactRequest) error
-	GetContactRequestByID(ctx context.Context, id uint) (*models.AgentContactRequest, error)
-}
-
-type agentRepository struct {
+type AgentRepo struct {
 	db *gorm.DB
 }
 
-// NewAgentRepository 创建代理人仓库
-func NewAgentRepository(db *gorm.DB) AgentRepository {
-	return &agentRepository{db: db}
+func NewAgentRepo(db *gorm.DB) *AgentRepo {
+	return &AgentRepo{db: db}
 }
 
-// 代理人相关
-
-func (r *agentRepository) List(ctx context.Context, filter *models.ListAgentsRequest) ([]*models.Agent, int64, error) {
+// FindAll 查询所有代理人（分页+筛选）
+func (r *AgentRepo) FindAll(ctx context.Context, req *models.ListAgentsRequest) ([]*models.Agent, int64, error) {
 	var agents []*models.Agent
 	var total int64
-	
+
 	query := r.db.WithContext(ctx).Model(&models.Agent{})
-	
-	// 默认只查询活跃的代理人
-	if filter.Status != nil {
-		query = query.Where("status = ?", *filter.Status)
-	} else {
-		query = query.Where("status = ?", models.AgentStatusActive)
-	}
-	
+
 	// 应用筛选条件
-	if filter.AgencyID != nil {
-		query = query.Where("agency_id = ?", *filter.AgencyID)
+	if req.LicenseType != nil {
+		query = query.Where("license_type = ?", *req.LicenseType)
 	}
-	if filter.DistrictID != nil {
-		// 通过服务区域关联表筛选
-		query = query.Joins("JOIN agent_service_areas ON agent_service_areas.agent_id = agents.id").
-			Where("agent_service_areas.district_id = ?", *filter.DistrictID)
+	if req.AgencyID != nil {
+		query = query.Where("agency_id = ?", *req.AgencyID)
 	}
-	if filter.IsVerified != nil {
-		query = query.Where("is_verified = ?", *filter.IsVerified)
+	if req.Status != nil {
+		query = query.Where("status = ?", *req.Status)
 	}
-	if filter.Specialization != nil && *filter.Specialization != "" {
-		query = query.Where("specialization LIKE ?", "%" + *filter.Specialization + "%")
+	if req.IsVerified != nil {
+		query = query.Where("is_verified = ?", *req.IsVerified)
 	}
-	if filter.MinRating != nil {
-		query = query.Where("rating >= ?", *filter.MinRating)
+	if req.Specialization != nil {
+		query = query.Where("specialization LIKE ?", "%"+*req.Specialization+"%")
 	}
-	if filter.Keyword != nil && *filter.Keyword != "" {
-		keyword := "%" + *filter.Keyword + "%"
-		query = query.Where("agent_name LIKE ? OR agent_name_en LIKE ? OR license_no LIKE ?", keyword, keyword, keyword)
+	if req.Keyword != "" {
+		keyword := "%" + req.Keyword + "%"
+		query = query.Where("agent_name LIKE ? OR agent_name_en LIKE ? OR license_no LIKE ?",
+			keyword, keyword, keyword)
 	}
-	
+
+	// 如果指定了地区，通过服务区域关联查询
+	if req.DistrictID != nil {
+		query = query.Joins("INNER JOIN agent_service_areas ON agent_service_areas.agent_id = agents.id").
+			Where("agent_service_areas.district_id = ?", *req.DistrictID)
+	}
+
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
-	// 设置默认值
-	page := filter.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	sortBy := filter.SortBy
-	if sortBy == "" {
-		sortBy = "rating"
-	}
-	sortOrder := filter.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	
-	// 分页和排序
-	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-	
-	// 验证的代理人优先
-	query = query.Order("is_verified DESC")
-	query = query.Order(sortBy + " " + sortOrder)
-	
-	// 预加载关联
-	query = query.Preload("Agency").Preload("ServiceAreas").Preload("ServiceAreas.District")
-	
-	if err := query.Find(&agents).Error; err != nil {
-		return nil, 0, err
-	}
-	
-	return agents, total, nil
+
+	// 分页查询
+	offset := (req.Page - 1) * req.PageSize
+	err := query.
+		Offset(offset).
+		Limit(req.PageSize).
+		Order("rating DESC, properties_sold DESC").
+		Find(&agents).Error
+
+	return agents, total, err
 }
 
-func (r *agentRepository) GetByID(ctx context.Context, id uint) (*models.Agent, error) {
+// FindByID 根据ID查询代理人
+func (r *AgentRepo) FindByID(ctx context.Context, id uint) (*models.Agent, error) {
 	var agent models.Agent
-	
 	err := r.db.WithContext(ctx).
-		Preload("Agency").
-		Preload("ServiceAreas").
-		Preload("ServiceAreas.District").
+		Preload("User").
 		First(&agent, id).Error
-		
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	
-	return &agent, nil
+	return &agent, err
 }
 
-func (r *agentRepository) GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) ([]*models.Property, int64, error) {
+// GetAgentProperties 获取代理人的房源列表
+func (r *AgentRepo) GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) ([]*models.Property, int64, error) {
 	var properties []*models.Property
 	var total int64
-	
+
 	query := r.db.WithContext(ctx).Model(&models.Property{}).
-		Where("agent_id = ? AND status = ?", agentID, "active")
-	
+		Where("agent_id = ? AND status = ?", agentID, "available")
+
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
-	// 设置默认值
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	
-	// 分页
+
+	// 分页查询
 	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-	
-	// 排序
-	query = query.Order("created_at DESC")
-	
-	// 预加载关联
-	query = query.Preload("District").Preload("Estate").Preload("Images")
-	
-	if err := query.Find(&properties).Error; err != nil {
-		return nil, 0, err
-	}
-	
-	return properties, total, nil
+	err := query.
+		Preload("District").
+		Offset(offset).
+		Limit(pageSize).
+		Order("published_at DESC").
+		Find(&properties).Error
+
+	return properties, total, err
 }
 
-// 联系请求相关
-
-func (r *agentRepository) CreateContactRequest(ctx context.Context, contactReq *models.AgentContactRequest) error {
-	return r.db.WithContext(ctx).Create(contactReq).Error
-}
-
-func (r *agentRepository) GetContactRequestByID(ctx context.Context, id uint) (*models.AgentContactRequest, error) {
-	var contactReq models.AgentContactRequest
-	
+// GetServiceAreas 获取代理人服务区域
+func (r *AgentRepo) GetServiceAreas(ctx context.Context, agentID uint) ([]*models.AgentServiceArea, error) {
+	var serviceAreas []*models.AgentServiceArea
 	err := r.db.WithContext(ctx).
-		Preload("Agent").
-		Preload("Property").
-		First(&contactReq, id).Error
-		
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	
-	return &contactReq, nil
+		Preload("District").
+		Where("agent_id = ?", agentID).
+		Find(&serviceAreas).Error
+	return serviceAreas, err
+}
+
+// CreateContact 创建联系代理人记录
+func (r *AgentRepo) CreateContact(ctx context.Context, contact *models.AgentContact) error {
+	return r.db.WithContext(ctx).Create(contact).Error
+}
+
+// IncrementPropertySold 增加已售物业数量
+func (r *AgentRepo) IncrementPropertySold(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Agent{}).
+		Where("id = ?", id).
+		UpdateColumn("properties_sold", gorm.Expr("properties_sold + ?", 1)).
+		Error
+}
+
+// IncrementPropertyRented 增加已租物业数量
+func (r *AgentRepo) IncrementPropertyRented(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Agent{}).
+		Where("id = ?", id).
+		UpdateColumn("properties_rented", gorm.Expr("properties_rented + ?", 1)).
+		Error
 }

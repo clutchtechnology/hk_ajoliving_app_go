@@ -1,176 +1,124 @@
 package controllers
 
 import (
-	"net/http"
-
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
-// StatisticsHandler 统计处理器
-type StatisticsHandler struct {
-	*BaseHandler
-	service services.StatisticsService
+// StatisticsController 统计控制器
+type StatisticsController struct {
+	service *services.StatisticsService
 }
 
-// NewStatisticsHandler 创建统计处理器实例
-func NewStatisticsHandler(baseHandler *BaseHandler, service services.StatisticsService) *StatisticsHandler {
-	return &StatisticsHandler{
-		BaseHandler: baseHandler,
-		service:     service,
-	}
+// NewStatisticsController 创建统计控制器实例
+func NewStatisticsController(service *services.StatisticsService) *StatisticsController {
+	return &StatisticsController{service: service}
 }
 
 // GetOverviewStatistics 获取总览统计
 // @Summary 获取总览统计
-// @Description 获取平台总览统计数据，包括房产、用户、代理人、成交等汇总信息
+// @Description 获取平台总览统计数据，包括房产、用户、代理、屋苑等核心指标
 // @Tags 统计分析
 // @Accept json
 // @Produce json
-// @Param period query string false "统计周期" Enums(day, week, month, year) default(month)
-// @Success 200 {object} models.Response{data=models.OverviewStatisticsResponse} "统计数据"
-// @Failure 400 {object} models.Response "参数错误"
-// @Failure 500 {object} models.Response "服务器错误"
+// @Param start_date query string false "开始日期 (YYYY-MM-DD)"
+// @Param end_date query string false "结束日期 (YYYY-MM-DD)"
+// @Success 200 {object} tools.Response{data=models.OverviewStatisticsResponse}
 // @Router /api/v1/statistics/overview [get]
-func (h *StatisticsHandler) GetOverviewStatistics(c *gin.Context) {
+func (ctrl *StatisticsController) GetOverviewStatistics(c *gin.Context) {
 	var req models.GetOverviewStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		h.Logger.Warn("参数验证失败", zap.Error(err))
-		tools.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认周期
-	if req.Period == "" {
-		req.Period = "month"
-	}
-
-	data, err := h.service.GetOverviewStatistics(c.Request.Context(), &req)
+	stats, err := ctrl.service.GetOverviewStatistics(c.Request.Context(), &req)
 	if err != nil {
-		h.Logger.Error("获取总览统计失败", zap.Error(err))
-		tools.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, data)
+	tools.Success(c, stats)
 }
 
 // GetPropertyStatistics 获取房产统计
 // @Summary 获取房产统计
-// @Description 获取房产统计数据，包括数量分布、价格统计、趋势分析等
+// @Description 获取房产详细统计数据，包括数量、价格、面积、房型、地区分布等
 // @Tags 统计分析
 // @Accept json
 // @Produce json
-// @Param period query string false "统计周期" Enums(day, week, month, year) default(month)
-// @Param district_id query integer false "地区ID"
-// @Param estate_id query integer false "屋苑ID"
-// @Param listing_type query string false "房源类型" Enums(rent, sale)
 // @Param start_date query string false "开始日期 (YYYY-MM-DD)"
 // @Param end_date query string false "结束日期 (YYYY-MM-DD)"
-// @Success 200 {object} models.Response{data=models.PropertyStatisticsResponse} "统计数据"
-// @Failure 400 {object} models.Response "参数错误"
-// @Failure 500 {object} models.Response "服务器错误"
+// @Param district_id query int false "地区ID"
+// @Success 200 {object} tools.Response{data=models.PropertyStatisticsResponse}
 // @Router /api/v1/statistics/properties [get]
-func (h *StatisticsHandler) GetPropertyStatistics(c *gin.Context) {
+func (ctrl *StatisticsController) GetPropertyStatistics(c *gin.Context) {
 	var req models.GetPropertyStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		h.Logger.Warn("参数验证失败", zap.Error(err))
-		tools.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认周期
-	if req.Period == nil {
-		defaultPeriod := "month"
-		req.Period = &defaultPeriod
-	}
-
-	data, err := h.service.GetPropertyStatistics(c.Request.Context(), &req)
+	stats, err := ctrl.service.GetPropertyStatistics(c.Request.Context(), &req)
 	if err != nil {
-		h.Logger.Error("获取房产统计失败", zap.Error(err))
-		tools.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, data)
+	tools.Success(c, stats)
 }
 
 // GetTransactionStatistics 获取成交统计
 // @Summary 获取成交统计
-// @Description 获取成交统计数据，包括成交量、成交金额、趋势分析、地区分布等
+// @Description 获取成交统计数据，包括成交数量、金额、地区分布、月度趋势等
 // @Tags 统计分析
 // @Accept json
 // @Produce json
-// @Param period query string false "统计周期" Enums(day, week, month, year) default(month)
-// @Param district_id query integer false "地区ID"
-// @Param estate_id query integer false "屋苑ID"
-// @Param listing_type query string false "房源类型" Enums(rent, sale)
 // @Param start_date query string false "开始日期 (YYYY-MM-DD)"
 // @Param end_date query string false "结束日期 (YYYY-MM-DD)"
-// @Success 200 {object} models.Response{data=models.TransactionStatisticsResponse} "统计数据"
-// @Failure 400 {object} models.Response "参数错误"
-// @Failure 500 {object} models.Response "服务器错误"
+// @Param district_id query int false "地区ID"
+// @Success 200 {object} tools.Response{data=models.TransactionStatisticsResponse}
 // @Router /api/v1/statistics/transactions [get]
-func (h *StatisticsHandler) GetTransactionStatistics(c *gin.Context) {
+func (ctrl *StatisticsController) GetTransactionStatistics(c *gin.Context) {
 	var req models.GetTransactionStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		h.Logger.Warn("参数验证失败", zap.Error(err))
-		tools.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认周期
-	if req.Period == nil {
-		defaultPeriod := "month"
-		req.Period = &defaultPeriod
-	}
-
-	data, err := h.service.GetTransactionStatistics(c.Request.Context(), &req)
+	stats, err := ctrl.service.GetTransactionStatistics(c.Request.Context(), &req)
 	if err != nil {
-		h.Logger.Error("获取成交统计失败", zap.Error(err))
-		tools.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, data)
+	tools.Success(c, stats)
 }
 
 // GetUserStatistics 获取用户统计
 // @Summary 获取用户统计
-// @Description 获取用户统计数据，包括用户数量、增长趋势、状态分布、角色分布等
+// @Description 获取用户统计数据，包括用户总数、新增用户、活跃度、代理统计等
 // @Tags 统计分析
 // @Accept json
 // @Produce json
-// @Param period query string false "统计周期" Enums(day, week, month, year) default(month)
 // @Param start_date query string false "开始日期 (YYYY-MM-DD)"
 // @Param end_date query string false "结束日期 (YYYY-MM-DD)"
-// @Success 200 {object} models.Response{data=models.UserStatisticsResponse} "统计数据"
-// @Failure 400 {object} models.Response "参数错误"
-// @Failure 500 {object} models.Response "服务器错误"
+// @Success 200 {object} tools.Response{data=models.UserStatisticsResponse}
 // @Router /api/v1/statistics/users [get]
-func (h *StatisticsHandler) GetUserStatistics(c *gin.Context) {
+func (ctrl *StatisticsController) GetUserStatistics(c *gin.Context) {
 	var req models.GetUserStatisticsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		h.Logger.Warn("参数验证失败", zap.Error(err))
-		tools.BadRequest(c, "参数错误: "+err.Error())
+		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认周期
-	if req.Period == nil {
-		defaultPeriod := "month"
-		req.Period = &defaultPeriod
-	}
-
-	data, err := h.service.GetUserStatistics(c.Request.Context(), &req)
+	stats, err := ctrl.service.GetUserStatistics(c.Request.Context(), &req)
 	if err != nil {
-		h.Logger.Error("获取用户统计失败", zap.Error(err))
-		tools.InternalError(c, "获取统计数据失败")
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	tools.Success(c, data)
+	tools.Success(c, stats)
 }

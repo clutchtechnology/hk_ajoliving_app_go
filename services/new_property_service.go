@@ -2,160 +2,86 @@ package services
 
 import (
 	"context"
-	"errors"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 )
 
-// NewPropertyService 新楼盘服务接口
+// NewDevelopmentService 新盘服务
 // Methods:
-// 0. NewNewPropertyService(repo, logger) -> 注入依赖
-// 1. ListNewDevelopments(ctx, req) -> 获取新楼盘列表
-// 2. GetNewDevelopment(ctx, id) -> 获取新楼盘详情
-// 3. GetDevelopmentUnits(ctx, id) -> 获取楼盘户型列表
-// 4. GetFeaturedNewDevelopments(ctx, limit) -> 获取精选新楼盘
-type NewPropertyService interface {
-	ListNewDevelopments(ctx context.Context, req *models.ListNewDevelopmentsRequest) ([]*models.NewProperty, int64, error)
-	GetNewDevelopment(ctx context.Context, id uint) (*models.NewProperty, error)
-	GetDevelopmentUnits(ctx context.Context, id uint) ([]models.NewPropertyLayout, error)
-	GetFeaturedNewDevelopments(ctx context.Context, limit int) ([]*models.NewProperty, error)
+// 1. ListNewProperties(ctx context.Context, filter *models.ListNewPropertiesRequest) -> 获取新盘列表
+// 2. GetNewProperty(ctx context.Context, id uint) -> 获取新盘详情
+// 3. GetNewPropertyLayouts(ctx context.Context, newPropertyID uint) -> 获取新盘户型列表
+type NewDevelopmentService struct {
+	repo *databases.NewDevelopmentRepo
 }
 
-// newPropertyService 新楼盘服务实现
-type newPropertyService struct {
-	repo   databases.NewPropertyRepository
-	logger *zap.Logger
+// NewNewDevelopmentService 创建新盘服务
+func NewNewDevelopmentService(repo *databases.NewDevelopmentRepo) *NewDevelopmentService {
+	return &NewDevelopmentService{repo: repo}
 }
 
-// NewNewPropertyService 创建新楼盘服务实例
-func NewNewPropertyService(repo databases.NewPropertyRepository, logger *zap.Logger) NewPropertyService {
-	return &newPropertyService{
-		repo:   repo,
-		logger: logger,
+// ListNewProperties 获取新盘列表
+func (s *NewDevelopmentService) ListNewProperties(ctx context.Context, filter *models.ListNewPropertiesRequest) (*models.PaginatedNewPropertiesResponse, error) {
+	// 默认参数
+	if filter.Page < 1 {
+		filter.Page = 1
 	}
-}
+	if filter.PageSize < 1 {
+		filter.PageSize = 20
+	}
+	if filter.PageSize > 100 {
+		filter.PageSize = 100
+	}
 
-// ListNewDevelopments 获取新楼盘列表
-func (s *newPropertyService) ListNewDevelopments(ctx context.Context, req *models.ListNewDevelopmentsRequest) ([]*models.NewProperty, int64, error) {
-	// 获取新楼盘列表
-	newProperties, total, err := s.repo.List(ctx, req)
+	newProperties, total, err := s.repo.FindAll(ctx, filter)
 	if err != nil {
-		s.logger.Error("Failed to list new developments", zap.Error(err))
-		return nil, 0, err
-	}
-
-	// 转换为响应格式
-	items := make([]*models.NewProperty, len(newProperties))
-	for i, np := range newProperties {
-		items[i] = s.toNewDevelopmentListItemResponse(np)
-	}
-
-	return items, total, nil
-}
-
-// GetNewDevelopment 获取新楼盘详情
-func (s *newPropertyService) GetNewDevelopment(ctx context.Context, id uint) (*models.NewProperty, error) {
-	// 获取新楼盘
-	np, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, pkgErrors.ErrNotFound
-		}
-		s.logger.Error("Failed to get new development", zap.Uint("id", id), zap.Error(err))
-		return nil, err
-	}
-
-	// 增加浏览次数
-	if err := s.repo.IncrementViewCount(ctx, id); err != nil {
-		s.logger.Warn("Failed to increment view count", zap.Uint("id", id), zap.Error(err))
-	}
-
-	return s.toNewDevelopmentResponse(np), nil
-}
-
-// GetDevelopmentUnits 获取楼盘户型列表
-func (s *newPropertyService) GetDevelopmentUnits(ctx context.Context, id uint) ([]models.NewPropertyLayout, error) {
-	// 检查新楼盘是否存在
-	_, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, pkgErrors.ErrNotFound
-		}
-		s.logger.Error("Failed to get new development", zap.Uint("id", id), zap.Error(err))
-		return nil, err
-	}
-
-	// 获取户型列表
-	layouts, err := s.repo.GetLayouts(ctx, id)
-	if err != nil {
-		s.logger.Error("Failed to get development units", zap.Uint("id", id), zap.Error(err))
 		return nil, err
 	}
 
 	// 转换为响应格式
-	result := make([]models.NewPropertyLayout, len(layouts))
-	for i, layout := range layouts {
-		result[i] = s.toLayoutResponse(&layout)
+	items := make([]models.NewPropertyResponse, len(newProperties))
+	for i, np := range newProperties {
+		items[i] = *np.ToNewPropertyResponse()
 	}
 
-	return result, nil
+	// 计算总页数
+	totalPages := int(total) / filter.PageSize
+	if int(total)%filter.PageSize > 0 {
+		totalPages++
+	}
+
+	return &models.PaginatedNewPropertiesResponse{
+		Data:       items,
+		Total:      total,
+		Page:       filter.Page,
+		PageSize:   filter.PageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
-// GetFeaturedNewDevelopments 获取精选新楼盘
-func (s *newPropertyService) GetFeaturedNewDevelopments(ctx context.Context, limit int) ([]*models.NewProperty, error) {
-	newProperties, err := s.repo.GetFeatured(ctx, limit)
+// GetNewProperty 获取新盘详情
+func (s *NewDevelopmentService) GetNewProperty(ctx context.Context, id uint) (*models.NewPropertyDetailResponse, error) {
+	newProperty, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		s.logger.Error("Failed to get featured new developments", zap.Error(err))
 		return nil, err
 	}
 
-	items := make([]*models.NewProperty, len(newProperties))
-	for i, np := range newProperties {
-		items[i] = s.toNewDevelopmentListItemResponse(np)
+	// 异步增加浏览次数
+	go func() {
+		_ = s.repo.IncrementViewCount(context.Background(), id)
+	}()
+
+	return newProperty.ToNewPropertyDetailResponse(), nil
+}
+
+// GetNewPropertyLayouts 获取新盘户型列表
+func (s *NewDevelopmentService) GetNewPropertyLayouts(ctx context.Context, newPropertyID uint) ([]models.NewPropertyLayout, error) {
+	// 先检查新盘是否存在
+	_, err := s.repo.FindByID(ctx, newPropertyID)
+	if err != nil {
+		return nil, err
 	}
 
-	return items, nil
-}
-
-// toNewDevelopmentResponse 转换为新楼盘详情响应（直接返回，预加载了关联数据）
-func (s *newPropertyService) toNewDevelopmentResponse(np *models.NewProperty) *models.NewProperty {
-	return np
-}
-
-// toNewDevelopmentListItemResponse 转换为新楼盘列表项响应（直接返回，预加载了关联数据）
-func (s *newPropertyService) toNewDevelopmentListItemResponse(np *models.NewProperty) *models.NewProperty {
-	return np
-}
-
-// toLayoutResponse 转换为户型响应（直接返回模型）
-func (s *newPropertyService) toLayoutResponse(layout *models.NewPropertyLayout) models.NewPropertyLayout {
-	return *layout
-}
-
-// 辅助函数已不再需要，但保留以防其他地方使用
-// derefString 解引用 string 指针，返回值或空字符串
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-// derefInt 解引用 int 指针，返回值或 0
-func derefInt(i *int) int {
-	if i == nil {
-		return 0
-	}
-	return *i
-}
-
-// derefFloat64 解引用 float64 指针，返回值或 0
-func derefFloat64(f *float64) float64 {
-	if f == nil {
-		return 0
-	}
-	return *f
+	return s.repo.FindLayouts(ctx, newPropertyID)
 }

@@ -2,72 +2,37 @@ package databases
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"gorm.io/gorm"
 )
 
-// FacilityRepository 设施数据仓库接口
-type FacilityRepository interface {
-	List(ctx context.Context, req *models.ListFacilitiesRequest) ([]*models.Facility, int64, error)
-	GetByID(ctx context.Context, id uint) (*models.Facility, error)
-	Create(ctx context.Context, facility *models.Facility) error
-	Update(ctx context.Context, facility *models.Facility) error
-	Delete(ctx context.Context, id uint) error
-	ExistsByID(ctx context.Context, id uint) (bool, error)
-}
-
-type facilityRepository struct {
+type FacilityRepo struct {
 	db *gorm.DB
 }
 
-// NewFacilityRepository 创建设施仓库实例
-func NewFacilityRepository(db *gorm.DB) FacilityRepository {
-	return &facilityRepository{db: db}
+func NewFacilityRepo(db *gorm.DB) *FacilityRepo {
+	return &FacilityRepo{db: db}
 }
 
-// List 获取设施列表
-func (r *facilityRepository) List(ctx context.Context, req *models.ListFacilitiesRequest) ([]*models.Facility, int64, error) {
-	var facilities []*models.Facility
-	var total int64
-
+// FindAll 查询所有设施
+func (r *FacilityRepo) FindAll(ctx context.Context, category string) ([]models.Facility, error) {
+	var facilities []models.Facility
 	query := r.db.WithContext(ctx).Model(&models.Facility{})
 
-	// 应用筛选条件
-	if req.Category != nil {
-		query = query.Where("category = ?", *req.Category)
+	if category != "" {
+		query = query.Where("category = ?", category)
 	}
 
-	if req.Keyword != nil && *req.Keyword != "" {
-		keyword := "%" + *req.Keyword + "%"
-		query = query.Where(
-			"name_zh_hant ILIKE ? OR name_zh_hans ILIKE ? OR name_en ILIKE ?",
-			keyword, keyword, keyword,
-		)
+	if err := query.Order("category ASC, sort_order ASC, id ASC").Find(&facilities).Error; err != nil {
+		return nil, err
 	}
 
-	// 统计总数
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// 分页和排序
-	offset := (req.Page - 1) * req.PageSize
-	orderBy := fmt.Sprintf("%s %s", req.SortBy, req.SortOrder)
-	
-	if err := query.
-		Offset(offset).
-		Limit(req.PageSize).
-		Order(orderBy).
-		Find(&facilities).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return facilities, total, nil
+	return facilities, nil
 }
 
-// GetByID 根据ID获取设施
-func (r *facilityRepository) GetByID(ctx context.Context, id uint) (*models.Facility, error) {
+// FindByID 根据ID查询设施
+func (r *FacilityRepo) FindByID(ctx context.Context, id uint) (*models.Facility, error) {
 	var facility models.Facility
 	if err := r.db.WithContext(ctx).First(&facility, id).Error; err != nil {
 		return nil, err
@@ -76,23 +41,35 @@ func (r *facilityRepository) GetByID(ctx context.Context, id uint) (*models.Faci
 }
 
 // Create 创建设施
-func (r *facilityRepository) Create(ctx context.Context, facility *models.Facility) error {
+func (r *FacilityRepo) Create(ctx context.Context, facility *models.Facility) error {
 	return r.db.WithContext(ctx).Create(facility).Error
 }
 
 // Update 更新设施
-func (r *facilityRepository) Update(ctx context.Context, facility *models.Facility) error {
-	return r.db.WithContext(ctx).Save(facility).Error
+func (r *FacilityRepo) Update(ctx context.Context, id uint, updates map[string]interface{}) error {
+	return r.db.WithContext(ctx).Model(&models.Facility{}).
+		Where("id = ?", id).
+		Updates(updates).Error
 }
 
 // Delete 删除设施
-func (r *facilityRepository) Delete(ctx context.Context, id uint) error {
+func (r *FacilityRepo) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&models.Facility{}, id).Error
 }
 
-// ExistsByID 检查设施是否存在
-func (r *facilityRepository) ExistsByID(ctx context.Context, id uint) (bool, error) {
+// CheckNameExists 检查设施名称是否存在
+func (r *FacilityRepo) CheckNameExists(ctx context.Context, nameZhHant string, excludeID uint) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&models.Facility{}).Where("id = ?", id).Count(&count).Error
-	return count > 0, err
+	query := r.db.WithContext(ctx).Model(&models.Facility{}).
+		Where("name_zh_hant = ?", nameZhHant)
+
+	if excludeID > 0 {
+		query = query.Where("id != ?", excludeID)
+	}
+
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
 }

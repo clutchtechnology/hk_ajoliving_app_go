@@ -2,323 +2,191 @@ package services
 
 import (
 	"context"
-	"go.uber.org/zap"
+	"errors"
+
+	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
+	"gorm.io/gorm"
 )
 
-// SchoolService 校网和学校服务接口
-type SchoolService interface {
-	// 校网相关
-	ListSchoolNets(ctx context.Context, filter *models.ListSchoolNetsRequest) ([]*models.SchoolNet, int64, error)
-	GetSchoolNet(ctx context.Context, id uint) (*models.SchoolNet, error)
-	GetSchoolsInNet(ctx context.Context, schoolNetID uint) ([]*models.School, error)
-	GetPropertiesInNet(ctx context.Context, schoolNetID uint) ([]*models.Property, error)
-	GetEstatesInNet(ctx context.Context, schoolNetID uint) ([]*models.Estate, error)
-	SearchSchoolNets(ctx context.Context, filter *models.ListSchoolNetsRequest) ([]*models.SchoolNet, int64, error)
-	
-	// 学校相关
-	ListSchools(ctx context.Context, filter *models.ListSchoolsRequest) ([]*models.School, int64, error)
-	GetSchoolNetBySchoolID(ctx context.Context, schoolID uint) (*models.SchoolNet, error)
-	SearchSchools(ctx context.Context, filter *models.ListSchoolsRequest) ([]*models.School, int64, error)
+// SchoolService Methods:
+// 0. NewSchoolService(schoolRepo *databases.SchoolRepo) -> 注入依赖
+// 1. ListSchools(ctx context.Context, req *models.ListSchoolsRequest) -> 学校列表
+// 2. GetSchool(ctx context.Context, id uint) -> 学校详情
+// 3. GetSchoolNet(ctx context.Context, schoolID uint) -> 获取学校所属校网
+// 4. SearchSchools(ctx context.Context, keyword string, page, pageSize int) -> 搜索学校
+
+type SchoolService struct {
+	schoolRepo *databases.SchoolRepo
 }
 
-type schoolService struct {
-	schoolRepo   databases.SchoolRepository
-	propertyRepo databases.PropertyRepository
-	estateRepo   databases.EstateRepository
-	logger       *zap.Logger
-}
-
-// NewSchoolService 创建校网和学校服务
-func NewSchoolService(
-	schoolRepo databases.SchoolRepository,
-	propertyRepo databases.PropertyRepository,
-	estateRepo databases.EstateRepository,
-	logger *zap.Logger,
-) SchoolService {
-	return &schoolService{
-		schoolRepo:   schoolRepo,
-		propertyRepo: propertyRepo,
-		estateRepo:   estateRepo,
-		logger:       logger,
+// 0. NewSchoolService 构造函数
+func NewSchoolService(schoolRepo *databases.SchoolRepo) *SchoolService {
+	return &SchoolService{
+		schoolRepo: schoolRepo,
 	}
 }
 
-// 校网相关
-
-func (s *schoolService) ListSchoolNets(ctx context.Context, filter *models.ListSchoolNetsRequest) ([]*models.SchoolNet, int64, error) {
-	schoolNets, total, err := s.schoolRepo.ListSchoolNets(ctx, filter)
+// 1. ListSchools 学校列表
+func (s *SchoolService) ListSchools(ctx context.Context, req *models.ListSchoolsRequest) (*models.PaginatedSchoolsResponse, error) {
+	schools, total, err := s.schoolRepo.FindAll(ctx, req)
 	if err != nil {
-		s.logger.Error("failed to list school nets", zap.Error(err))
-		return nil, 0, err
-	}
-	
-	result := make([]*models.SchoolNet, 0, len(schoolNets))
-	for _, sn := range schoolNets {
-		result = append(result, convertToSchoolNetListItemResponse(sn))
-	}
-	
-	return result, total, nil
-}
-
-func (s *schoolService) GetSchoolNet(ctx context.Context, id uint) (*models.SchoolNet, error) {
-	schoolNet, err := s.schoolRepo.GetSchoolNetByID(ctx, id)
-	if err != nil {
-		s.logger.Error("failed to get school net", zap.Error(err))
 		return nil, err
 	}
-	if schoolNet == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	return convertToSchoolNetResponse(schoolNet), nil
-}
 
-func (s *schoolService) GetSchoolsInNet(ctx context.Context, schoolNetID uint) ([]*models.School, error) {
-	// 检查校网是否存在
-	schoolNet, err := s.schoolRepo.GetSchoolNetByID(ctx, schoolNetID)
-	if err != nil {
-		s.logger.Error("failed to get school net", zap.Error(err))
-		return nil, err
-	}
-	if schoolNet == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	schools, err := s.schoolRepo.GetSchoolsBySchoolNetID(ctx, schoolNetID)
-	if err != nil {
-		s.logger.Error("failed to get schools in net", zap.Error(err))
-		return nil, err
-	}
-	
-	result := make([]*models.School, 0, len(schools))
+	var items []*models.SchoolResponse
 	for _, school := range schools {
-		result = append(result, convertToSchoolListItemResponse(school))
+		items = append(items, s.buildSchoolResponse(school))
 	}
-	
-	return result, nil
+
+	totalPages := int(total) / req.PageSize
+	if int(total)%req.PageSize > 0 {
+		totalPages++
+	}
+
+	return &models.PaginatedSchoolsResponse{
+		Items:      items,
+		Total:      total,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
-func (s *schoolService) GetPropertiesInNet(ctx context.Context, schoolNetID uint) ([]*models.Property, error) {
-	// 检查校网是否存在
-	schoolNet, err := s.schoolRepo.GetSchoolNetByID(ctx, schoolNetID)
+// 2. GetSchool 学校详情
+func (s *SchoolService) GetSchool(ctx context.Context, id uint) (*models.SchoolDetailResponse, error) {
+	school, err := s.schoolRepo.FindByID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get school net", zap.Error(err))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
 		return nil, err
 	}
-	if schoolNet == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	// 获取校网所在地区的房源
-	filter := &models.ListPropertiesRequest{
-		DistrictID: &schoolNet.DistrictID,
-		Page:       1,
-		PageSize:   100,
-		SortBy:     "created_at",
-		SortOrder:  "desc",
-	}
-	
-	properties, _, err := s.propertyRepo.List(ctx, filter)
-	if err != nil {
-		s.logger.Error("failed to get properties in net", zap.Error(err))
-		return nil, err
-	}
-	
-	return properties, nil
+
+	// 增加浏览次数
+	_ = s.schoolRepo.IncrementViewCount(ctx, id)
+
+	return s.buildSchoolDetailResponse(school), nil
 }
 
-func (s *schoolService) GetEstatesInNet(ctx context.Context, schoolNetID uint) ([]*models.Estate, error) {
-	// 检查校网是否存在
-	schoolNet, err := s.schoolRepo.GetSchoolNetByID(ctx, schoolNetID)
+// 3. GetSchoolNet 获取学校所属校网
+func (s *SchoolService) GetSchoolNet(ctx context.Context, schoolID uint) (*models.SchoolNetResponse, error) {
+	school, err := s.schoolRepo.FindByID(ctx, schoolID)
 	if err != nil {
-		s.logger.Error("failed to get school net", zap.Error(err))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
 		return nil, err
 	}
-	if schoolNet == nil {
-		return nil, tools.ErrNotFound
+
+	if school.SchoolNet == nil {
+		return nil, errors.New("school does not belong to any school net")
 	}
-	
-	// 获取校网所在地区的屋苑
-	filter := &models.ListEstatesRequest{
-		DistrictID: &schoolNet.DistrictID,
-		Page:       1,
-		PageSize:   100,
-		SortBy:     "name_zh_hant",
-		SortOrder:  "asc",
-	}
-	
-	estates, _, err := s.estateRepo.List(ctx, filter)
+
+	return &models.SchoolNetResponse{
+		ID:          school.SchoolNet.ID,
+		Code:        school.SchoolNet.Code,
+		NameZhHant:  school.SchoolNet.NameZhHant,
+		NameZhHans:  school.SchoolNet.NameZhHans,
+		NameEn:      school.SchoolNet.NameEn,
+		Type:        school.SchoolNet.Type,
+		DistrictID:  school.SchoolNet.DistrictID,
+		Description: school.SchoolNet.Description,
+		Coverage:    school.SchoolNet.Coverage,
+		SchoolCount: school.SchoolNet.SchoolCount,
+	}, nil
+}
+
+// 4. SearchSchools 搜索学校
+func (s *SchoolService) SearchSchools(ctx context.Context, keyword string, page, pageSize int) (*models.PaginatedSchoolsResponse, error) {
+	schools, total, err := s.schoolRepo.Search(ctx, keyword, page, pageSize)
 	if err != nil {
-		s.logger.Error("failed to get estates in net", zap.Error(err))
 		return nil, err
 	}
-	
-	return estates, nil
-}
 
-func (s *schoolService) SearchSchoolNets(ctx context.Context, filter *models.ListSchoolNetsRequest) ([]*models.SchoolNet, int64, error) {
-	page := filter.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	offset := (page - 1) * pageSize
-	
-	keyword := ""
-	if filter.Keyword != nil {
-		keyword = *filter.Keyword
-	}
-	
-	schoolNets, total, err := s.schoolRepo.SearchSchoolNets(ctx, keyword, pageSize, offset)
-	if err != nil {
-		s.logger.Error("failed to search school nets", zap.Error(err))
-		return nil, 0, err
-	}
-	
-	result := make([]*models.SchoolNet, 0, len(schoolNets))
-	for _, sn := range schoolNets {
-		result = append(result, convertToSchoolNetListItemResponse(sn))
-	}
-	
-	return result, total, nil
-}
-
-// 学校相关
-
-func (s *schoolService) ListSchools(ctx context.Context, filter *models.ListSchoolsRequest) ([]*models.School, int64, error) {
-	schools, total, err := s.schoolRepo.ListSchools(ctx, filter)
-	if err != nil {
-		s.logger.Error("failed to list schools", zap.Error(err))
-		return nil, 0, err
-	}
-	
-	result := make([]*models.School, 0, len(schools))
+	var items []*models.SchoolResponse
 	for _, school := range schools {
-		result = append(result, convertToSchoolListItemResponse(school))
+		items = append(items, s.buildSchoolResponse(school))
 	}
-	
-	return result, total, nil
+
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return &models.PaginatedSchoolsResponse{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
-func (s *schoolService) GetSchoolNetBySchoolID(ctx context.Context, schoolID uint) (*models.SchoolNet, error) {
-	school, err := s.schoolRepo.GetSchoolByID(ctx, schoolID)
-	if err != nil {
-		s.logger.Error("failed to get school", zap.Error(err))
-		return nil, err
-	}
-	if school == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	schoolNet, err := s.schoolRepo.GetSchoolNetByID(ctx, school.SchoolNetID)
-	if err != nil {
-		s.logger.Error("failed to get school net", zap.Error(err))
-		return nil, err
-	}
-	if schoolNet == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	return convertToSchoolNetResponse(schoolNet), nil
-}
-
-func (s *schoolService) SearchSchools(ctx context.Context, filter *models.ListSchoolsRequest) ([]*models.School, int64, error) {
-	page := filter.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	offset := (page - 1) * pageSize
-	
-	keyword := ""
-	if filter.Keyword != nil {
-		keyword = *filter.Keyword
-	}
-	
-	schools, total, err := s.schoolRepo.SearchSchools(ctx, keyword, pageSize, offset)
-	if err != nil {
-		s.logger.Error("failed to search schools", zap.Error(err))
-		return nil, 0, err
-	}
-	
-	result := make([]*models.School, 0, len(schools))
-	for _, school := range schools {
-		result = append(result, convertToSchoolListItemResponse(school))
-	}
-	
-	return result, total, nil
-}
-
-// 辅助函数
-
-func convertToSchoolNetListItemResponse(sn *models.SchoolNet) *models.SchoolNet {
-	resp := &models.SchoolNet{
-		ID:          sn.ID,
-		NetCode:     sn.NetCode,
-		NameZhHant:  sn.NameZhHant,
-		NameZhHans:  sn.NameZhHans,
-		NameEn:      sn.NameEn,
-		DistrictID:  sn.DistrictID,
-		Level:       sn.Level,
-		SchoolCount: sn.SchoolCount,
-		CreatedAt:   sn.CreatedAt,
-		District:    sn.District,
-	}
-	
-	return resp
-}
-
-func convertToSchoolNetResponse(sn *models.SchoolNet) *models.SchoolNet {
-	resp := &models.SchoolNet{
-		ID:          sn.ID,
-		NetCode:     sn.NetCode,
-		NameZhHant:  sn.NameZhHant,
-		NameZhHans:  sn.NameZhHans,
-		NameEn:      sn.NameEn,
-		DistrictID:  sn.DistrictID,
-		Description: sn.Description,
-		Level:       sn.Level,
-		SchoolCount: sn.SchoolCount,
-		MapData:     sn.MapData,
-		CreatedAt:   sn.CreatedAt,
-		UpdatedAt:   sn.UpdatedAt,
-		District:    sn.District,
-	}
-	
-	return resp
-}
-
-func convertToSchoolListItemResponse(school *models.School) *models.School {
-	resp := &models.School{
+// buildSchoolResponse 构建学校响应
+func (s *SchoolService) buildSchoolResponse(school *models.School) *models.SchoolResponse {
+	return &models.SchoolResponse{
 		ID:           school.ID,
-		SchoolNetID:  school.SchoolNetID,
-		DistrictID:   school.DistrictID,
 		NameZhHant:   school.NameZhHant,
 		NameZhHans:   school.NameZhHans,
 		NameEn:       school.NameEn,
-		SchoolCode:   school.SchoolCode,
+		Type:         school.Type,
 		Category:     school.Category,
-		Level:        school.Level,
 		Gender:       school.Gender,
-		Religion:     school.Religion,
+		SchoolNetID:  school.SchoolNetID,
+		DistrictID:   school.DistrictID,
 		Address:      school.Address,
-		Phone:        school.Phone,
-		Website:      school.Website,
-		StudentCount: school.StudentCount,
 		Rating:       school.Rating,
-		LogoURL:      school.LogoURL,
-		District:     school.District,
+		StudentCount: school.StudentCount,
 	}
-	
-	return resp
 }
 
+// buildSchoolDetailResponse 构建学校详情响应
+func (s *SchoolService) buildSchoolDetailResponse(school *models.School) *models.SchoolDetailResponse {
+	response := &models.SchoolDetailResponse{
+		ID:            school.ID,
+		NameZhHant:    school.NameZhHant,
+		NameZhHans:    school.NameZhHans,
+		NameEn:        school.NameEn,
+		Type:          school.Type,
+		Category:      school.Category,
+		Gender:        school.Gender,
+		SchoolNetID:   school.SchoolNetID,
+		DistrictID:    school.DistrictID,
+		Address:       school.Address,
+		Phone:         school.Phone,
+		Email:         school.Email,
+		Website:       school.Website,
+		EstablishedAt: school.EstablishedAt,
+		Principal:     school.Principal,
+		Religion:      school.Religion,
+		Curriculum:    school.Curriculum,
+		StudentCount:  school.StudentCount,
+		TeacherCount:  school.TeacherCount,
+		Rating:        school.Rating,
+		Description:   school.Description,
+		ViewCount:     school.ViewCount,
+	}
+
+	if school.SchoolNet != nil {
+		response.SchoolNet = &models.SchoolNetResponse{
+			ID:          school.SchoolNet.ID,
+			Code:        school.SchoolNet.Code,
+			NameZhHant:  school.SchoolNet.NameZhHant,
+			NameZhHans:  school.SchoolNet.NameZhHans,
+			NameEn:      school.SchoolNet.NameEn,
+			Type:        school.SchoolNet.Type,
+			DistrictID:  school.SchoolNet.DistrictID,
+			Description: school.SchoolNet.Description,
+			Coverage:    school.SchoolNet.Coverage,
+			SchoolCount: school.SchoolNet.SchoolCount,
+		}
+	}
+
+	if school.District != nil {
+		response.District = school.District.ToDistrictResponse()
+	}
+
+	return response
+}

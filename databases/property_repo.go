@@ -4,89 +4,59 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
+	"math"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"gorm.io/gorm"
 )
 
-// PropertyRepository 房产数据访问接口
-type PropertyRepository interface {
-	Create(ctx context.Context, property *models.Property) error
-	GetByID(ctx context.Context, id uint) (*models.Property, error)
-	GetByPropertyNo(ctx context.Context, propertyNo string) (*models.Property, error)
-	Update(ctx context.Context, property *models.Property) error
-	Delete(ctx context.Context, id uint) error
-	List(ctx context.Context, filter *models.ListPropertiesRequest) ([]*models.Property, int64, error)
-	ListByPublisher(ctx context.Context, publisherID uint, page, pageSize int) ([]*models.Property, int64, error)
-	GetFeatured(ctx context.Context, listingType string, limit int) ([]*models.Property, error)
-	GetHot(ctx context.Context, listingType string, limit int) ([]*models.Property, error)
-	GetSimilar(ctx context.Context, property *models.Property, limit int) ([]*models.Property, error)
-	IncrementViewCount(ctx context.Context, id uint) error
-}
-
-type propertyRepository struct {
+// PropertyRepo 房产仓储
+type PropertyRepo struct {
 	db *gorm.DB
 }
 
-// NewPropertyRepo 创建房产仓库
-func NewPropertyRepo(db *gorm.DB) PropertyRepository {
-	return &propertyRepository{db: db}
+// NewPropertyRepo 创建房产仓储
+func NewPropertyRepo(db *gorm.DB) *PropertyRepo {
+	return &PropertyRepo{db: db}
 }
 
-func (r *propertyRepository) Create(ctx context.Context, property *models.Property) error {
+// Create 创建房产
+func (r *PropertyRepo) Create(ctx context.Context, property *models.Property) error {
 	return r.db.WithContext(ctx).Create(property).Error
 }
 
-func (r *propertyRepository) GetByID(ctx context.Context, id uint) (*models.Property, error) {
+// FindByID 根据ID查找房产
+func (r *PropertyRepo) FindByID(ctx context.Context, id uint) (*models.Property, error) {
 	var property models.Property
 	err := r.db.WithContext(ctx).
 		Preload("District").
-		Preload("Agent").
-		Preload("Images").
-		Preload("Facilities").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC")
+		}).
 		First(&property, id).Error
+	
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, errors.New("property not found")
 		}
 		return nil, err
 	}
 	return &property, nil
 }
 
-func (r *propertyRepository) GetByPropertyNo(ctx context.Context, propertyNo string) (*models.Property, error) {
-	var property models.Property
-	err := r.db.WithContext(ctx).
-		Where("property_no = ?", propertyNo).
-		First(&property).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &property, nil
-}
-
-func (r *propertyRepository) Update(ctx context.Context, property *models.Property) error {
-	return r.db.WithContext(ctx).Save(property).Error
-}
-
-func (r *propertyRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&models.Property{}, id).Error
-}
-
-func (r *propertyRepository) List(ctx context.Context, filter *models.ListPropertiesRequest) ([]*models.Property, int64, error) {
-	var properties []*models.Property
+// FindAll 查找所有房产（支持筛选和分页）
+func (r *PropertyRepo) FindAll(ctx context.Context, filter *models.ListPropertiesRequest) ([]models.Property, int64, error) {
+	var properties []models.Property
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&models.Property{})
 
 	// 应用筛选条件
+	if filter.ListingType != nil {
+		query = query.Where("listing_type = ?", *filter.ListingType)
+	}
 	if filter.DistrictID != nil {
 		query = query.Where("district_id = ?", *filter.DistrictID)
-	}
-	if filter.BuildingName != nil && *filter.BuildingName != "" {
-		query = query.Where("building_name LIKE ?", "%"+*filter.BuildingName+"%")
 	}
 	if filter.MinPrice != nil {
 		query = query.Where("price >= ?", *filter.MinPrice)
@@ -106,17 +76,20 @@ func (r *propertyRepository) List(ctx context.Context, filter *models.ListProper
 	if filter.PropertyType != nil {
 		query = query.Where("property_type = ?", *filter.PropertyType)
 	}
-	if filter.ListingType != nil {
-		query = query.Where("listing_type = ?", filter.ListingType)
+	if filter.BuildingName != nil {
+		query = query.Where("building_name LIKE ?", "%"+*filter.BuildingName+"%")
 	}
-	if filter.Status != nil && *filter.Status != "" {
-		query = query.Where("status = ?", filter.Status)
+	if filter.PrimarySchool != nil {
+		query = query.Where("primary_school_net = ?", *filter.PrimarySchool)
+	}
+	if filter.SecondarySchool != nil {
+		query = query.Where("secondary_school_net = ?", *filter.SecondarySchool)
+	}
+	if filter.Status != nil {
+		query = query.Where("status = ?", *filter.Status)
 	} else {
-		// 默认只显示可用的房源
-		query = query.Where("status = ?", models.PropertyStatusAvailable)
-	}
-	if filter.SchoolNet != nil && *filter.SchoolNet != "" {
-		query = query.Where("primary_school_net = ? OR secondary_school_net = ?", *filter.SchoolNet, *filter.SchoolNet)
+		// 默认只显示可用状态
+		query = query.Where("status = ?", "available")
 	}
 
 	// 统计总数
@@ -124,13 +97,29 @@ func (r *propertyRepository) List(ctx context.Context, filter *models.ListProper
 		return nil, 0, err
 	}
 
-	// 分页和排序
+	// 排序
+	switch filter.SortBy {
+	case "price_asc":
+		query = query.Order("price ASC")
+	case "price_desc":
+		query = query.Order("price DESC")
+	case "area_asc":
+		query = query.Order("area ASC")
+	case "area_desc":
+		query = query.Order("area DESC")
+	default:
+		query = query.Order("created_at DESC")
+	}
+
+	// 分页
 	offset := (filter.Page - 1) * filter.PageSize
-	orderClause := fmt.Sprintf("%s %s", filter.SortBy, filter.SortOrder)
-	query = query.Offset(offset).Limit(filter.PageSize).Order(orderClause)
+	query = query.Offset(offset).Limit(filter.PageSize)
 
 	// 预加载关联
-	query = query.Preload("District").Preload("Images", "is_cover = true")
+	query = query.Preload("District").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Limit(1) // 列表只加载第一张图
+		})
 
 	if err := query.Find(&properties).Error; err != nil {
 		return nil, 0, err
@@ -139,97 +128,122 @@ func (r *propertyRepository) List(ctx context.Context, filter *models.ListProper
 	return properties, total, nil
 }
 
-func (r *propertyRepository) ListByPublisher(ctx context.Context, publisherID uint, page, pageSize int) ([]*models.Property, int64, error) {
-	var properties []*models.Property
-	var total int64
-
-	query := r.db.WithContext(ctx).Model(&models.Property{}).Where("publisher_id = ?", publisherID)
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	offset := (page - 1) * pageSize
-	if err := query.Offset(offset).Limit(pageSize).
-		Order("created_at DESC").
-		Preload("District").
-		Preload("Images", "is_cover = true").
-		Find(&properties).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return properties, total, nil
+// Update 更新房产
+func (r *PropertyRepo) Update(ctx context.Context, property *models.Property) error {
+	return r.db.WithContext(ctx).Save(property).Error
 }
 
-func (r *propertyRepository) GetFeatured(ctx context.Context, listingType string, limit int) ([]*models.Property, error) {
-	var properties []*models.Property
-
-	query := r.db.WithContext(ctx).Model(&models.Property{}).
-		Where("status = ?", models.PropertyStatusAvailable)
-
-	if listingType != "" {
-		query = query.Where("listing_type = ?", listingType)
-	}
-
-	// 精选房源按收藏数和浏览数排序
-	if err := query.Order("favorite_count DESC, view_count DESC").
-		Limit(limit).
-		Preload("District").
-		Preload("Images", "is_cover = true").
-		Find(&properties).Error; err != nil {
-		return nil, err
-	}
-
-	return properties, nil
+// Delete 删除房产（软删除）
+func (r *PropertyRepo) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Property{}, id).Error
 }
 
-func (r *propertyRepository) GetHot(ctx context.Context, listingType string, limit int) ([]*models.Property, error) {
-	var properties []*models.Property
-
-	query := r.db.WithContext(ctx).Model(&models.Property{}).
-		Where("status = ?", models.PropertyStatusAvailable)
-
-	if listingType != "" {
-		query = query.Where("listing_type = ?", listingType)
-	}
-
-	// 热门房源按浏览数排序
-	if err := query.Order("view_count DESC, created_at DESC").
-		Limit(limit).
-		Preload("District").
-		Preload("Images", "is_cover = true").
-		Find(&properties).Error; err != nil {
-		return nil, err
-	}
-
-	return properties, nil
-}
-
-func (r *propertyRepository) GetSimilar(ctx context.Context, property *models.Property, limit int) ([]*models.Property, error) {
-	var properties []*models.Property
-
-	// 相似房源：同地区、同类型、价格相近的房源
-	priceRange := property.Price * 0.3 // 30% 价格范围
-
-	if err := r.db.WithContext(ctx).Model(&models.Property{}).
-		Where("id != ?", property.ID).
-		Where("status = ?", models.PropertyStatusAvailable).
-		Where("listing_type = ?", property.ListingType).
-		Where("district_id = ? OR property_type = ?", property.DistrictID, property.PropertyType).
-		Where("price BETWEEN ? AND ?", property.Price-priceRange, property.Price+priceRange).
-		Order("view_count DESC").
-		Limit(limit).
-		Preload("District").
-		Preload("Images", "is_cover = true").
-		Find(&properties).Error; err != nil {
-		return nil, err
-	}
-
-	return properties, nil
-}
-
-func (r *propertyRepository) IncrementViewCount(ctx context.Context, id uint) error {
+// IncrementViewCount 增加浏览次数
+func (r *PropertyRepo) IncrementViewCount(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&models.Property{}).
 		Where("id = ?", id).
-		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+}
+
+// FindSimilar 查找相似房源
+func (r *PropertyRepo) FindSimilar(ctx context.Context, property *models.Property, limit int) ([]models.Property, error) {
+	var similar []models.Property
+
+	// 相似条件：同地区、同类型、价格相近
+	priceMin := property.Price * 0.8
+	priceMax := property.Price * 1.2
+
+	err := r.db.WithContext(ctx).
+		Where("id != ?", property.ID).
+		Where("district_id = ?", property.DistrictID).
+		Where("listing_type = ?", property.ListingType).
+		Where("property_type = ?", property.PropertyType).
+		Where("price BETWEEN ? AND ?", priceMin, priceMax).
+		Where("status = ?", "available").
+		Preload("District").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Limit(1)
+		}).
+		Order("RANDOM()").
+		Limit(limit).
+		Find(&similar).Error
+
+	return similar, err
+}
+
+// FindFeatured 查找精选房源
+func (r *PropertyRepo) FindFeatured(ctx context.Context, limit int) ([]models.Property, error) {
+	var featured []models.Property
+
+	err := r.db.WithContext(ctx).
+		Where("status = ?", "available").
+		Where("published_at IS NOT NULL").
+		Preload("District").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Limit(1)
+		}).
+		Order("favorite_count DESC, view_count DESC").
+		Limit(limit).
+		Find(&featured).Error
+
+	return featured, err
+}
+
+// FindHot 查找热门房源
+func (r *PropertyRepo) FindHot(ctx context.Context, limit int) ([]models.Property, error) {
+	var hot []models.Property
+
+	err := r.db.WithContext(ctx).
+		Where("status = ?", "available").
+		Where("created_at >= NOW() - INTERVAL '30 days'"). // 最近30天
+		Preload("District").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Limit(1)
+		}).
+		Order("view_count DESC, created_at DESC").
+		Limit(limit).
+		Find(&hot).Error
+
+	return hot, err
+}
+
+// FindByPublisher 根据发布者查找房产
+func (r *PropertyRepo) FindByPublisher(ctx context.Context, publisherID uint, listingType *string) ([]models.Property, error) {
+	var properties []models.Property
+
+	query := r.db.WithContext(ctx).
+		Where("publisher_id = ?", publisherID).
+		Preload("District").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Limit(1)
+		})
+
+	if listingType != nil {
+		query = query.Where("listing_type = ?", *listingType)
+	}
+
+	err := query.Order("created_at DESC").Find(&properties).Error
+	return properties, err
+}
+
+// CreateImages 批量创建房产图片
+func (r *PropertyRepo) CreateImages(ctx context.Context, images []models.PropertyImage) error {
+	if len(images) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&images).Error
+}
+
+// GeneratePropertyNo 生成房产编号
+func (r *PropertyRepo) GeneratePropertyNo(ctx context.Context) (string, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&models.Property{}).Count(&count).Error; err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("P%08d", count+1), nil
+}
+
+// CalculateTotalPages 计算总页数
+func CalculateTotalPages(total int64, pageSize int) int {
+	return int(math.Ceil(float64(total) / float64(pageSize)))
 }

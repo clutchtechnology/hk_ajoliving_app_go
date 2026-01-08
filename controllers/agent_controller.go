@@ -1,198 +1,166 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
+	"github.com/gin-gonic/gin"
 )
 
+// AgentController Methods:
+// 0. NewAgentController(service *services.AgentService) -> 注入 AgentService
+// 1. ListAgents(c *gin.Context) -> 代理人列表
+// 2. GetAgent(c *gin.Context) -> 代理人详情
+// 3. GetAgentProperties(c *gin.Context) -> 代理人房源列表
+// 4. ContactAgent(c *gin.Context) -> 联系代理人
 
-
-
-// AgentHandler 代理人处理器
-type AgentHandler struct {
-	*BaseHandler
-	service services.AgentService
+type AgentController struct {
+	service *services.AgentService
 }
 
-// NewAgentHandler 创建代理人处理器
-func NewAgentHandler(service services.AgentService) *AgentHandler {
-	return &AgentHandler{
-		BaseHandler: NewBaseHandler(),
-		service:     service,
-	}
+// 0. NewAgentController 构造函数
+func NewAgentController(service *services.AgentService) *AgentController {
+	return &AgentController{service: service}
 }
 
-// ListAgents 获取代理人列表
-// @Summary 获取代理人列表
-// @Description 获取代理人列表，支持代理公司、地区、评分等筛选
-// @Tags 代理人
-// @Accept json
+// 1. ListAgents 代理人列表
+// @Summary 代理人列表
+// @Tags Agent
 // @Produce json
+// @Param license_type query string false "牌照类型 (individual, salesperson)"
 // @Param agency_id query int false "代理公司ID"
 // @Param district_id query int false "服务地区ID"
-// @Param status query string false "状态" Enums(active, inactive, suspended)
+// @Param status query string false "状态 (active, inactive, suspended)"
 // @Param is_verified query bool false "是否已验证"
-// @Param specialization query string false "专业领域"
-// @Param min_rating query number false "最低评分"
+// @Param specialization query string false "专长领域"
 // @Param keyword query string false "关键词搜索"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Param sort_by query string false "排序字段" default(rating)
-// @Param sort_order query string false "排序方向" Enums(asc, desc) default(desc)
-// @Success 200 {object} models.PaginatedResponse{data=[]models.AgentListItemResponse}
-// @Failure 400 {object} models.Response
-// @Failure 500 {object} models.Response
+// @Success 200 {object} tools.Response{data=models.PaginatedAgentsResponse}
 // @Router /api/v1/agents [get]
-func (h *AgentHandler) ListAgents(c *gin.Context) {
-	var filter models.ListAgentsRequest
-	if err := c.ShouldBindQuery(&filter); err != nil {
+func (ctrl *AgentController) ListAgents(c *gin.Context) {
+	var req models.ListAgentsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
-	
-	agents, total, err := h.service.ListAgents(c.Request.Context(), &filter)
+
+	result, err := ctrl.service.ListAgents(c.Request.Context(), &req)
 	if err != nil {
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.SuccessWithPagination(c, agents, &tools.Pagination{
-		Page:      filter.Page,
-		PageSize:  filter.PageSize,
-		Total:     total,
-		TotalPage: int((total + int64(filter.PageSize) - 1) / int64(filter.PageSize)),
-	})
+
+	tools.Success(c, result)
 }
 
-// GetAgent 获取代理人详情
-// @Summary 获取代理人详情
-// @Description 根据代理人ID获取详细信息
-// @Tags 代理人
-// @Accept json
+// 2. GetAgent 代理人详情
+// @Summary 代理人详情
+// @Tags Agent
 // @Produce json
 // @Param id path int true "代理人ID"
-// @Success 200 {object} models.Response{data=models.AgentResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
+// @Success 200 {object} tools.Response{data=models.AgentDetailResponse}
 // @Router /api/v1/agents/{id} [get]
-func (h *AgentHandler) GetAgent(c *gin.Context) {
+func (ctrl *AgentController) GetAgent(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agent id")
 		return
 	}
-	
-	agent, err := h.service.GetAgent(c.Request.Context(), uint(id))
+
+	agent, err := ctrl.service.GetAgent(c.Request.Context(), uint(id))
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == tools.ErrNotFound {
 			tools.NotFound(c, "agent not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
+
 	tools.Success(c, agent)
 }
 
-// GetAgentProperties 获取代理人房源列表
-// @Summary 获取代理人房源列表
-// @Description 获取指定代理人的所有房源
-// @Tags 代理人
-// @Accept json
+// 3. GetAgentProperties 代理人房源列表
+// @Summary 代理人房源列表
+// @Tags Agent
 // @Produce json
 // @Param id path int true "代理人ID"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} models.PaginatedResponse{data=[]models.PropertyListItemResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
+// @Success 200 {object} tools.Response
 // @Router /api/v1/agents/{id}/properties [get]
-func (h *AgentHandler) GetAgentProperties(c *gin.Context) {
+func (ctrl *AgentController) GetAgentProperties(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agent id")
 		return
 	}
-	
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	
+
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	
-	properties, total, err := h.service.GetAgentProperties(c.Request.Context(), uint(id), page, pageSize)
+
+	result, err := ctrl.service.GetAgentProperties(c.Request.Context(), uint(id), page, pageSize)
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == tools.ErrNotFound {
 			tools.NotFound(c, "agent not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.SuccessWithPagination(c, properties, &tools.Pagination{
-		Page:      page,
-		PageSize:  pageSize,
-		Total:     total,
-		TotalPage: int((total + int64(pageSize) - 1) / int64(pageSize)),
-	})
+
+	tools.Success(c, result)
 }
 
-// ContactAgent 联系代理人
+// 4. ContactAgent 联系代理人
 // @Summary 联系代理人
-// @Description 提交联系代理人的请求
-// @Tags 代理人
+// @Tags Agent
 // @Accept json
 // @Produce json
 // @Param id path int true "代理人ID"
-// @Param request body models.ContactAgentRequest true "联系信息"
-// @Success 200 {object} models.Response{data=models.AgentContactResponse}
-// @Failure 400 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
+// @Param body body models.ContactAgentRequest true "联系信息"
+// @Success 200 {object} tools.Response
 // @Router /api/v1/agents/{id}/contact [post]
-func (h *AgentHandler) ContactAgent(c *gin.Context) {
+func (ctrl *AgentController) ContactAgent(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		tools.BadRequest(c, "invalid agent id")
 		return
 	}
-	
+
 	var req models.ContactAgentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
-	
-	// 获取用户ID（如果已登录）
+
+	// 尝试获取用户ID（如果已登录）
 	var userID *uint
 	if uid, exists := c.Get("user_id"); exists {
 		if id, ok := uid.(uint); ok {
 			userID = &id
 		}
 	}
-	
-	contactResp, err := h.service.ContactAgent(c.Request.Context(), uint(id), userID, &req)
+
+	err = ctrl.service.ContactAgent(c.Request.Context(), uint(id), userID, &req)
 	if err != nil {
-		if errors.Is(err, tools.ErrNotFound) {
+		if err == tools.ErrNotFound {
 			tools.NotFound(c, "agent not found")
 			return
 		}
 		tools.InternalError(c, err.Error())
 		return
 	}
-	
-	tools.Success(c, contactResp)
+
+	tools.Success(c, gin.H{"message": "contact request sent successfully"})
 }

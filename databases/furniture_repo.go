@@ -2,88 +2,26 @@ package databases
 
 import (
 	"context"
-	"errors"
-	"gorm.io/gorm"
+	"fmt"
+	"time"
+
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"gorm.io/gorm"
 )
 
-// FurnitureRepository 家具数据访问接口
-type FurnitureRepository interface {
-	Create(ctx context.Context, furniture *models.Furniture) error
-	GetByID(ctx context.Context, id uint) (*models.Furniture, error)
-	GetByFurnitureNo(ctx context.Context, furnitureNo string) (*models.Furniture, error)
-	Update(ctx context.Context, furniture *models.Furniture) error
-	Delete(ctx context.Context, id uint) error
-	List(ctx context.Context, filter *models.ListFurnitureRequest) ([]*models.Furniture, int64, error)
-	GetFeatured(ctx context.Context, limit int) ([]*models.Furniture, error)
-	GetByCategory(ctx context.Context, categoryID uint, page, pageSize int) ([]*models.Furniture, int64, error)
-	IncrementViewCount(ctx context.Context, id uint) error
-	UpdateStatus(ctx context.Context, id uint, status models.FurnitureStatus) error
-	
-	// 分类相关
-	GetAllCategories(ctx context.Context) ([]*models.FurnitureCategory, error)
-	GetCategoryByID(ctx context.Context, id uint) (*models.FurnitureCategory, error)
-	
-	// 图片相关
-	GetImagesByFurnitureID(ctx context.Context, furnitureID uint) ([]*models.FurnitureImage, error)
-}
-
-type furnitureRepository struct {
+// FurnitureRepo 家具仓储
+type FurnitureRepo struct {
 	db *gorm.DB
 }
 
-// NewFurnitureRepository 创建家具仓库
-func NewFurnitureRepository(db *gorm.DB) FurnitureRepository {
-	return &furnitureRepository{db: db}
+// NewFurnitureRepo 创建家具仓储
+func NewFurnitureRepo(db *gorm.DB) *FurnitureRepo {
+	return &FurnitureRepo{db: db}
 }
 
-func (r *furnitureRepository) Create(ctx context.Context, furniture *models.Furniture) error {
-	return r.db.WithContext(ctx).Create(furniture).Error
-}
-
-func (r *furnitureRepository) GetByID(ctx context.Context, id uint) (*models.Furniture, error) {
-	var furniture models.Furniture
-	err := r.db.WithContext(ctx).
-		Preload("Category").
-		Preload("Publisher").
-		Preload("DeliveryDistrict").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Order("sort_order ASC")
-		}).
-		First(&furniture, id).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &furniture, nil
-}
-
-func (r *furnitureRepository) GetByFurnitureNo(ctx context.Context, furnitureNo string) (*models.Furniture, error) {
-	var furniture models.Furniture
-	err := r.db.WithContext(ctx).
-		Where("furniture_no = ?", furnitureNo).
-		First(&furniture).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &furniture, nil
-}
-
-func (r *furnitureRepository) Update(ctx context.Context, furniture *models.Furniture) error {
-	return r.db.WithContext(ctx).Save(furniture).Error
-}
-
-func (r *furnitureRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&models.Furniture{}, id).Error
-}
-
-func (r *furnitureRepository) List(ctx context.Context, filter *models.ListFurnitureRequest) ([]*models.Furniture, int64, error) {
-	var furniture []*models.Furniture
+// FindAll 查询家具列表
+func (r *FurnitureRepo) FindAll(ctx context.Context, filter *models.ListFurnitureRequest) ([]models.Furniture, int64, error) {
+	var furniture []models.Furniture
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&models.Furniture{})
@@ -92,65 +30,78 @@ func (r *furnitureRepository) List(ctx context.Context, filter *models.ListFurni
 	if filter.CategoryID != nil {
 		query = query.Where("category_id = ?", *filter.CategoryID)
 	}
+
 	if filter.MinPrice != nil {
 		query = query.Where("price >= ?", *filter.MinPrice)
 	}
+
 	if filter.MaxPrice != nil {
 		query = query.Where("price <= ?", *filter.MaxPrice)
 	}
-	if filter.Condition != nil && *filter.Condition != "" {
+
+	if filter.Brand != nil && *filter.Brand != "" {
+		query = query.Where("brand LIKE ?", "%"+*filter.Brand+"%")
+	}
+
+	if filter.Condition != nil {
 		query = query.Where("condition = ?", *filter.Condition)
 	}
-	if filter.Brand != nil && *filter.Brand != "" {
-		query = query.Where("brand ILIKE ?", "%"+*filter.Brand+"%")
-	}
+
 	if filter.DeliveryDistrictID != nil {
 		query = query.Where("delivery_district_id = ?", *filter.DeliveryDistrictID)
 	}
-	if filter.DeliveryMethod != nil && *filter.DeliveryMethod != "" {
+
+	if filter.DeliveryMethod != nil {
 		query = query.Where("delivery_method = ?", *filter.DeliveryMethod)
 	}
-	if filter.Status != nil && *filter.Status != "" {
-		query = query.Where("status = ?", *filter.Status)
+
+	// 状态筛选
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	} else {
+		query = query.Where("status = ?", "available")
 	}
-	if filter.Keyword != nil && *filter.Keyword != "" {
-		query = query.Where("title ILIKE ? OR description ILIKE ?", "%"+ *filter.Keyword+"%", "%"+ *filter.Keyword+"%")
+
+	// 关键词搜索
+	if filter.Keyword != "" {
+		keyword := "%" + filter.Keyword + "%"
+		query = query.Where("title LIKE ? OR description LIKE ? OR brand LIKE ?", keyword, keyword, keyword)
 	}
+
+	// 只显示未过期的
+	query = query.Where("expires_at > ?", time.Now())
 
 	// 统计总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 设置默认值
-	page := filter.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := filter.PageSize
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-	sortBy := filter.SortBy
-	if sortBy == "" {
-		sortBy = "created_at"
-	}
-	sortOrder := filter.SortOrder
-	if sortOrder == "" {
-		sortOrder = "desc"
+	// 排序
+	sortBy := "published_at"
+	if filter.SortBy != "" {
+		switch filter.SortBy {
+		case "price":
+			sortBy = "price"
+		case "published_at":
+			sortBy = "published_at"
+		case "view_count":
+			sortBy = "view_count"
+		}
 	}
 
-	// 分页和排序
-	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
+	sortOrder := "desc"
+	if filter.SortOrder == "asc" {
+		sortOrder = "asc"
+	}
+
 	query = query.Order(sortBy + " " + sortOrder)
 
+	// 分页
+	offset := (filter.Page - 1) * filter.PageSize
+	query = query.Offset(offset).Limit(filter.PageSize)
+
 	// 预加载关联
-	query = query.Preload("Category").
-		Preload("DeliveryDistrict").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Where("is_cover = ?", true).Order("sort_order ASC").Limit(1)
-		})
+	query = query.Preload("Category").Preload("DeliveryDistrict").Preload("Images")
 
 	if err := query.Find(&furniture).Error; err != nil {
 		return nil, 0, err
@@ -159,141 +110,173 @@ func (r *furnitureRepository) List(ctx context.Context, filter *models.ListFurni
 	return furniture, total, nil
 }
 
-func (r *furnitureRepository) GetFeatured(ctx context.Context, limit int) ([]*models.Furniture, error) {
-	var furniture []*models.Furniture
-	
-	if limit <= 0 {
-		limit = 10
+// FindByID 根据ID查询家具
+func (r *FurnitureRepo) FindByID(ctx context.Context, id uint) (*models.Furniture, error) {
+	var furniture models.Furniture
+	if err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("DeliveryDistrict").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC")
+		}).
+		First(&furniture, id).Error; err != nil {
+		return nil, err
 	}
+	return &furniture, nil
+}
 
-	err := r.db.WithContext(ctx).
-		Where("status = ?", models.FurnitureStatusAvailable).
-		Where("expires_at > NOW()").
-		Order("view_count DESC, favorite_count DESC").
+// FindFeatured 查询精选家具
+func (r *FurnitureRepo) FindFeatured(ctx context.Context, limit int) ([]models.Furniture, error) {
+	var furniture []models.Furniture
+	if err := r.db.WithContext(ctx).
+		Where("status = ? AND expires_at > ?", "available", time.Now()).
+		Order("view_count DESC, published_at DESC").
 		Limit(limit).
 		Preload("Category").
 		Preload("DeliveryDistrict").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Where("is_cover = ?", true).Order("sort_order ASC").Limit(1)
+			return db.Order("sort_order ASC")
 		}).
-		Find(&furniture).Error
-
-	if err != nil {
+		Find(&furniture).Error; err != nil {
 		return nil, err
 	}
-
 	return furniture, nil
 }
 
-func (r *furnitureRepository) GetByCategory(ctx context.Context, categoryID uint, page, pageSize int) ([]*models.Furniture, int64, error) {
-	var furniture []*models.Furniture
-	var total int64
-
-	query := r.db.WithContext(ctx).
-		Model(&models.Furniture{}).
-		Where("category_id = ?", categoryID).
-		Where("status = ?", models.FurnitureStatusAvailable)
-
-	// 统计总数
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	// 设置默认值
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-
-	// 分页
-	offset := (page - 1) * pageSize
-	query = query.Offset(offset).Limit(pageSize)
-
-	// 预加载关联
-	query = query.Preload("Category").
-		Preload("DeliveryDistrict").
-		Preload("Images", func(db *gorm.DB) *gorm.DB {
-			return db.Where("is_cover = ?", true).Order("sort_order ASC").Limit(1)
-		})
-
-	if err := query.Find(&furniture).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return furniture, total, nil
-}
-
-func (r *furnitureRepository) IncrementViewCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).
-		Model(&models.Furniture{}).
-		Where("id = ?", id).
-		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).
-		Error
-}
-
-func (r *furnitureRepository) UpdateStatus(ctx context.Context, id uint, status models.FurnitureStatus) error {
-	return r.db.WithContext(ctx).
-		Model(&models.Furniture{}).
-		Where("id = ?", id).
-		Update("status", status).
-		Error
-}
-
-// 分类相关
-
-func (r *furnitureRepository) GetAllCategories(ctx context.Context) ([]*models.FurnitureCategory, error) {
-	var categories []*models.FurnitureCategory
-	
-	err := r.db.WithContext(ctx).
-		Where("is_active = ?", true).
-		Order("sort_order ASC, id ASC").
-		Preload("Subcategories", func(db *gorm.DB) *gorm.DB {
-			return db.Where("is_active = ?", true).Order("sort_order ASC")
-		}).
-		Find(&categories).Error
-
-	if err != nil {
+// FindImagesByFurnitureID 查询家具图片
+func (r *FurnitureRepo) FindImagesByFurnitureID(ctx context.Context, furnitureID uint) ([]models.FurnitureImage, error) {
+	var images []models.FurnitureImage
+	if err := r.db.WithContext(ctx).
+		Where("furniture_id = ?", furnitureID).
+		Order("sort_order ASC").
+		Find(&images).Error; err != nil {
 		return nil, err
 	}
+	return images, nil
+}
 
+// Create 创建家具
+func (r *FurnitureRepo) Create(ctx context.Context, furniture *models.Furniture) error {
+	return r.db.WithContext(ctx).Create(furniture).Error
+}
+
+// Update 更新家具
+func (r *FurnitureRepo) Update(ctx context.Context, furniture *models.Furniture) error {
+	return r.db.WithContext(ctx).Save(furniture).Error
+}
+
+// UpdateStatus 更新家具状态
+func (r *FurnitureRepo) UpdateStatus(ctx context.Context, id uint, status string) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Furniture{}).
+		Where("id = ?", id).
+		Update("status", status).Error
+}
+
+// Delete 删除家具（软删除）
+func (r *FurnitureRepo) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Furniture{}, id).Error
+}
+
+// IncrementViewCount 增加浏览次数
+func (r *FurnitureRepo) IncrementViewCount(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Furniture{}).
+		Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+}
+
+// GenerateFurnitureNo 生成家具编号
+func (r *FurnitureRepo) GenerateFurnitureNo(ctx context.Context) (string, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&models.Furniture{}).Count(&count).Error; err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("FUR%s%06d", time.Now().Format("20060102"), count+1), nil
+}
+
+// CreateImages 批量创建图片
+func (r *FurnitureRepo) CreateImages(ctx context.Context, images []models.FurnitureImage) error {
+	if len(images) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&images).Error
+}
+
+// DeleteImages 删除家具的所有图片
+func (r *FurnitureRepo) DeleteImages(ctx context.Context, furnitureID uint) error {
+	return r.db.WithContext(ctx).
+		Where("furniture_id = ?", furnitureID).
+		Delete(&models.FurnitureImage{}).Error
+}
+
+// UpdateImages 更新家具图片
+func (r *FurnitureRepo) UpdateImages(ctx context.Context, furnitureID uint, imageURLs []string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 删除旧图片
+		if err := tx.Where("furniture_id = ?", furnitureID).Delete(&models.FurnitureImage{}).Error; err != nil {
+			return err
+		}
+
+		// 添加新图片
+		if len(imageURLs) > 0 {
+			images := make([]models.FurnitureImage, len(imageURLs))
+			for i, url := range imageURLs {
+				images[i] = models.FurnitureImage{
+					FurnitureID: furnitureID,
+					ImageURL:    url,
+					IsCover:     i == 0, // 第一张为封面
+					SortOrder:   i,
+					CreatedAt:   time.Now(),
+				}
+			}
+			if err := tx.Create(&images).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// ===== 分类相关 =====
+
+// FindAllCategories 查询所有分类
+func (r *FurnitureRepo) FindAllCategories(ctx context.Context) ([]models.FurnitureCategory, error) {
+	var categories []models.FurnitureCategory
+	if err := r.db.WithContext(ctx).
+		Where("is_active = ? AND parent_id IS NULL", true).
+		Order("sort_order ASC").
+		Preload("SubCategories", func(db *gorm.DB) *gorm.DB {
+			return db.Where("is_active = ?", true).Order("sort_order ASC")
+		}).
+		Find(&categories).Error; err != nil {
+		return nil, err
+	}
 	return categories, nil
 }
 
-func (r *furnitureRepository) GetCategoryByID(ctx context.Context, id uint) (*models.FurnitureCategory, error) {
+// FindCategoryByID 根据ID查询分类
+func (r *FurnitureRepo) FindCategoryByID(ctx context.Context, id uint) (*models.FurnitureCategory, error) {
 	var category models.FurnitureCategory
-	
-	err := r.db.WithContext(ctx).
-		Preload("Parent").
-		Preload("Subcategories", func(db *gorm.DB) *gorm.DB {
+	if err := r.db.WithContext(ctx).
+		Preload("SubCategories", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = ?", true).Order("sort_order ASC")
 		}).
-		First(&category, id).Error
-		
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
+		First(&category, id).Error; err != nil {
 		return nil, err
 	}
-	
 	return &category, nil
 }
 
-// 图片相关
-
-func (r *furnitureRepository) GetImagesByFurnitureID(ctx context.Context, furnitureID uint) ([]*models.FurnitureImage, error) {
-	var images []*models.FurnitureImage
-	
-	err := r.db.WithContext(ctx).
-		Where("furniture_id = ?", furnitureID).
-		Order("sort_order ASC").
-		Find(&images).Error
-		
-	if err != nil {
-		return nil, err
+// GetFurnitureCountByCategory 获取分类下的家具数量
+func (r *FurnitureRepo) GetFurnitureCountByCategory(ctx context.Context, categoryID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&models.Furniture{}).
+		Where("category_id = ? AND status = ? AND expires_at > ?", categoryID, "available", time.Now()).
+		Count(&count).Error; err != nil {
+		return 0, err
 	}
-	
-	return images, nil
+	return count, nil
 }

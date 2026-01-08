@@ -2,125 +2,140 @@ package services
 
 import (
 	"context"
-	"go.uber.org/zap"
+	"errors"
+
+	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/databases"
+	"gorm.io/gorm"
 )
 
-// AgentService 代理人服务接口
-type AgentService interface {
-	ListAgents(ctx context.Context, filter *models.ListAgentsRequest) ([]*models.Agent, int64, error)
-	GetAgent(ctx context.Context, id uint) (*models.Agent, error)
-	GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) ([]*models.Property, int64, error)
-	ContactAgent(ctx context.Context, agentID uint, userID *uint, req *models.ContactAgentRequest) (*models.AgentContactResponse, error)
+// AgentService Methods:
+// 0. NewAgentService(agentRepo *databases.AgentRepo) -> 注入依赖
+// 1. ListAgents(ctx context.Context, req *models.ListAgentsRequest) -> 代理人列表
+// 2. GetAgent(ctx context.Context, id uint) -> 代理人详情
+// 3. GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) -> 代理人房源列表
+// 4. ContactAgent(ctx context.Context, agentID uint, userID *uint, req *models.ContactAgentRequest) -> 联系代理人
+
+type AgentService struct {
+	agentRepo *databases.AgentRepo
 }
 
-type agentService struct {
-	repo   databases.AgentRepository
-	logger *zap.Logger
-}
-
-// NewAgentService 创建代理人服务
-func NewAgentService(repo databases.AgentRepository, logger *zap.Logger) AgentService {
-	return &agentService{
-		repo:   repo,
-		logger: logger,
+// 0. NewAgentService 构造函数
+func NewAgentService(agentRepo *databases.AgentRepo) *AgentService {
+	return &AgentService{
+		agentRepo: agentRepo,
 	}
 }
 
-// ListAgents 获取代理人列表
-func (s *agentService) ListAgents(ctx context.Context, filter *models.ListAgentsRequest) ([]*models.Agent, int64, error) {
-	agents, total, err := s.repo.List(ctx, filter)
+// 1. ListAgents 代理人列表
+func (s *AgentService) ListAgents(ctx context.Context, req *models.ListAgentsRequest) (*models.PaginatedAgentsResponse, error) {
+	agents, total, err := s.agentRepo.FindAll(ctx, req)
 	if err != nil {
-		s.logger.Error("failed to list agents", zap.Error(err))
-		return nil, 0, err
+		return nil, err
 	}
-	
-	result := make([]*models.Agent, 0, len(agents))
+
+	var items []*models.AgentResponse
 	for _, agent := range agents {
-		result = append(result, convertToAgentListItemResponse(agent))
+		items = append(items, s.buildAgentResponse(agent))
 	}
-	
-	return result, total, nil
-}
 
-// GetAgent 获取代理人详情
-func (s *agentService) GetAgent(ctx context.Context, id uint) (*models.Agent, error) {
-	agent, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		s.logger.Error("failed to get agent", zap.Error(err))
-		return nil, err
+	totalPages := int(total) / req.PageSize
+	if int(total)%req.PageSize > 0 {
+		totalPages++
 	}
-	if agent == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	return agent, nil
-}
 
-// GetAgentProperties 获取代理人房源列表
-func (s *agentService) GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) ([]*models.Property, int64, error) {
-	// 先检查代理人是否存在
-	agent, err := s.repo.GetByID(ctx, agentID)
-	if err != nil {
-		s.logger.Error("failed to get agent", zap.Error(err))
-		return nil, 0, err
-	}
-	if agent == nil {
-		return nil, 0, tools.ErrNotFound
-	}
-	
-	// 获取代理人的房源
-	properties, total, err := s.repo.GetAgentProperties(ctx, agentID, page, pageSize)
-	if err != nil {
-		s.logger.Error("failed to get agent properties", zap.Error(err))
-		return nil, 0, err
-	}
-	
-	return properties, total, nil
-}
-
-// ContactAgent 联系代理人
-func (s *agentService) ContactAgent(ctx context.Context, agentID uint, userID *uint, req *models.ContactAgentRequest) (*models.AgentContactResponse, error) {
-	// 检查代理人是否存在
-	agent, err := s.repo.GetByID(ctx, agentID)
-	if err != nil {
-		s.logger.Error("failed to get agent", zap.Error(err))
-		return nil, err
-	}
-	if agent == nil {
-		return nil, tools.ErrNotFound
-	}
-	
-	// TODO: 实现联系请求逻辑
-	// 1. 保存联系记录到数据库
-	// 2. 发送通知给代理人
-	// 3. 发送确认邮件/短信给用户
-	
-	s.logger.Info("agent contact request received",
-		zap.Uint("agent_id", agentID),
-		zap.String("name", req.Name),
-		zap.String("phone", req.Phone),
-	)
-	
-	return &models.AgentContactResponse{
-		Success: true,
-		Message: "已收到您的咨询，代理人将尽快与您联系",
+	return &models.PaginatedAgentsResponse{
+		Items:      items,
+		Total:      total,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+		TotalPages: totalPages,
 	}, nil
 }
 
-// 辅助函数
+// 2. GetAgent 代理人详情
+func (s *AgentService) GetAgent(ctx context.Context, id uint) (*models.AgentDetailResponse, error) {
+	agent, err := s.agentRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
+	}
 
-// convertToAgentListItemResponse 转换为代理人列表项响应
-func convertToAgentListItemResponse(agent *models.Agent) *models.Agent {
-	resp := &models.Agent{
+	// 获取服务区域
+	serviceAreas, _ := s.agentRepo.GetServiceAreas(ctx, id)
+
+	return s.buildAgentDetailResponse(agent, serviceAreas), nil
+}
+
+// 3. GetAgentProperties 代理人房源列表
+func (s *AgentService) GetAgentProperties(ctx context.Context, agentID uint, page, pageSize int) (interface{}, error) {
+	// 验证代理人是否存在
+	_, err := s.agentRepo.FindByID(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, tools.ErrNotFound
+		}
+		return nil, err
+	}
+
+	properties, total, err := s.agentRepo.GetAgentProperties(ctx, agentID, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	return map[string]interface{}{
+		"items":       properties,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+	}, nil
+}
+
+// 4. ContactAgent 联系代理人
+func (s *AgentService) ContactAgent(ctx context.Context, agentID uint, userID *uint, req *models.ContactAgentRequest) error {
+	// 验证代理人是否存在且状态为活跃
+	agent, err := s.agentRepo.FindByID(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tools.ErrNotFound
+		}
+		return err
+	}
+
+	if agent.Status != "active" {
+		return errors.New("agent is not active")
+	}
+
+	// 创建联系记录
+	contact := &models.AgentContact{
+		AgentID: agentID,
+		UserID:  userID,
+		Name:    req.Name,
+		Phone:   req.Phone,
+		Email:   req.Email,
+		Message: req.Message,
+	}
+
+	return s.agentRepo.CreateContact(ctx, contact)
+}
+
+// buildAgentResponse 构建代理人响应
+func (s *AgentService) buildAgentResponse(agent *models.Agent) *models.AgentResponse {
+	return &models.AgentResponse{
 		ID:               agent.ID,
 		AgentName:        agent.AgentName,
 		AgentNameEn:      agent.AgentNameEn,
 		LicenseNo:        agent.LicenseNo,
 		LicenseType:      agent.LicenseType,
-		AgencyID:         agent.AgencyID,
 		Phone:            agent.Phone,
 		Email:            agent.Email,
 		ProfilePhoto:     agent.ProfilePhoto,
@@ -132,8 +147,53 @@ func convertToAgentListItemResponse(agent *models.Agent) *models.Agent {
 		PropertiesRented: agent.PropertiesRented,
 		Status:           agent.Status,
 		IsVerified:       agent.IsVerified,
-		CreatedAt:        agent.CreatedAt,
 	}
-	
-	return resp
+}
+
+// buildAgentDetailResponse 构建代理人详情响应
+func (s *AgentService) buildAgentDetailResponse(agent *models.Agent, serviceAreas []*models.AgentServiceArea) *models.AgentDetailResponse {
+	response := &models.AgentDetailResponse{
+		ID:                agent.ID,
+		AgentName:         agent.AgentName,
+		AgentNameEn:       agent.AgentNameEn,
+		LicenseNo:         agent.LicenseNo,
+		LicenseType:       agent.LicenseType,
+		LicenseExpiryDate: agent.LicenseExpiryDate,
+		AgencyID:          agent.AgencyID,
+		Phone:             agent.Phone,
+		Mobile:            agent.Mobile,
+		Email:             agent.Email,
+		WechatID:          agent.WechatID,
+		Whatsapp:          agent.Whatsapp,
+		OfficeAddress:     agent.OfficeAddress,
+		Specialization:    agent.Specialization,
+		YearsExperience:   agent.YearsExperience,
+		ProfilePhoto:      agent.ProfilePhoto,
+		Bio:               agent.Bio,
+		Rating:            agent.Rating,
+		ReviewCount:       agent.ReviewCount,
+		PropertiesSold:    agent.PropertiesSold,
+		PropertiesRented:  agent.PropertiesRented,
+		Status:            agent.Status,
+		IsVerified:        agent.IsVerified,
+		VerifiedAt:        agent.VerifiedAt,
+	}
+
+	// 添加服务区域
+	if len(serviceAreas) > 0 {
+		var areas []*models.DistrictBrief
+		for _, area := range serviceAreas {
+			if area.District != nil {
+				areas = append(areas, &models.DistrictBrief{
+					ID:         area.District.ID,
+					NameZhHant: area.District.NameZhHant,
+					NameEn:     area.District.NameEn,
+					Region:     area.District.Region,
+				})
+			}
+		}
+		response.ServiceAreas = areas
+	}
+
+	return response
 }

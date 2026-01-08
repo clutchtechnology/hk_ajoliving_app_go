@@ -1,172 +1,105 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
 
-	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
-	pkgErrors "github.com/clutchtechnology/hk_ajoliving_app_go/tools"
-	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/clutchtechnology/hk_ajoliving_app_go/services"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/models"
+	"github.com/clutchtechnology/hk_ajoliving_app_go/tools"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
-// NewPropertyHandler 新楼盘处理器
+// NewDevelopmentController 新盘控制器
 // Methods:
-// 0. NewNewPropertyHandler(service, logger) -> 注入依赖
-// 1. ListNewDevelopments(c *gin.Context) -> 获取新楼盘列表 GET /api/v1/new-properties
-// 2. GetNewDevelopment(c *gin.Context) -> 获取新楼盘详情 GET /api/v1/new-properties/:id
-// 3. GetDevelopmentUnits(c *gin.Context) -> 获取楼盘户型列表 GET /api/v1/new-properties/:id/units
-// 4. GetFeaturedNewDevelopments(c *gin.Context) -> 获取精选新楼盘 GET /api/v1/new-properties/featured
-type NewPropertyHandler struct {
-	service services.NewPropertyService
-	logger  *zap.Logger
+// 1. ListNewDevelopments(c *gin.Context) -> 获取新盘列表
+// 2. GetNewDevelopment(c *gin.Context) -> 获取新盘详情
+// 3. GetDevelopmentLayouts(c *gin.Context) -> 获取新盘户型列表
+type NewDevelopmentController struct {
+	service *services.NewDevelopmentService
 }
 
-// NewNewPropertyHandler 创建新楼盘处理器实例
-func NewNewPropertyHandler(svc services.NewPropertyService, logger *zap.Logger) *NewPropertyHandler {
-	return &NewPropertyHandler{
-		service: svc,
-		logger:  logger,
-	}
+// NewNewDevelopmentController 创建新盘控制器
+func NewNewDevelopmentController(service *services.NewDevelopmentService) *NewDevelopmentController {
+	return &NewDevelopmentController{service: service}
 }
 
-// ListNewDevelopments 获取新楼盘列表
-// @Summary 获取新楼盘列表
-// @Description 获取新楼盘列表，支持筛选和分页
-// @Tags 新楼盘
+// ListNewDevelopments 获取新盘列表
+// @Summary 获取新盘列表
+// @Tags 新盘
 // @Accept json
 // @Produce json
 // @Param district_id query int false "地区ID"
-// @Param developer query string false "发展商名称"
-// @Param status query string false "状态：upcoming/presale/selling/completed"
-// @Param min_price query number false "最低价格"
-// @Param max_price query number false "最高价格"
-// @Param bedrooms query int false "卧室数"
-// @Param school_net query string false "校网"
+// @Param status query string false "状态: upcoming, presale, selling, sold_out, completed"
+// @Param developer query string false "发展商名称（模糊搜索）"
+// @Param primary_school_net query string false "小学校网"
+// @Param secondary_school_net query string false "中学校网"
 // @Param is_featured query bool false "是否精选"
-// @Param sort_by query string false "排序字段"
-// @Param sort_order query string false "排序方向：asc/desc"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} models.Response{data=[]models.NewDevelopmentListItemResponse}
+// @Success 200 {object} tools.Response{data=models.PaginatedNewPropertiesResponse}
 // @Router /api/v1/new-properties [get]
-func (h *NewPropertyHandler) ListNewDevelopments(c *gin.Context) {
-	var req models.ListNewDevelopmentsRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
+func (ctrl *NewDevelopmentController) ListNewDevelopments(c *gin.Context) {
+	var filter models.ListNewPropertiesRequest
+	if err := c.ShouldBindQuery(&filter); err != nil {
 		tools.BadRequest(c, err.Error())
 		return
 	}
 
-	// 设置默认值
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.PageSize == 0 {
-		req.PageSize = 20
-	}
-
-	items, total, err := h.service.ListNewDevelopments(c.Request.Context(), &req)
+	result, err := ctrl.service.ListNewProperties(c.Request.Context(), &filter)
 	if err != nil {
-		h.logger.Error("Failed to list new developments", zap.Error(err))
-		tools.InternalError(c, "获取新楼盘列表失败")
+		tools.InternalError(c, err.Error())
 		return
 	}
 
-	pagination := models.NewPagination(req.Page, req.PageSize, total)
-	tools.SuccessWithPagination(c, items, pagination)
+	tools.Success(c, result)
 }
 
-// GetNewDevelopment 获取新楼盘详情
-// @Summary 获取新楼盘详情
-// @Description 根据ID获取新楼盘详情
-// @Tags 新楼盘
+// GetNewDevelopment 获取新盘详情
+// @Summary 获取新盘详情
+// @Tags 新盘
 // @Accept json
 // @Produce json
-// @Param id path int true "新楼盘ID"
-// @Success 200 {object} models.Response{data=models.NewDevelopmentResponse}
-// @Failure 404 {object} models.Response
+// @Param id path int true "新盘ID"
+// @Success 200 {object} tools.Response{data=models.NewPropertyDetailResponse}
+// @Failure 404 {object} tools.Response
 // @Router /api/v1/new-properties/{id} [get]
-func (h *NewPropertyHandler) GetNewDevelopment(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+func (ctrl *NewDevelopmentController) GetNewDevelopment(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		tools.BadRequest(c, "无效的新楼盘ID")
+		tools.BadRequest(c, "invalid new property id")
 		return
 	}
 
-	newDevelopment, err := h.service.GetNewDevelopment(c.Request.Context(), uint(id))
+	newProperty, err := ctrl.service.GetNewProperty(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == pkgErrors.ErrNotFound {
-			tools.NotFound(c, "新楼盘不存在")
-			return
-		}
-		h.logger.Error("Failed to get new development", zap.Uint64("id", id), zap.Error(err))
-		tools.InternalError(c, "获取新楼盘详情失败")
+		tools.NotFound(c, err.Error())
 		return
 	}
 
-	tools.Success(c, newDevelopment)
+	tools.Success(c, newProperty)
 }
 
-// GetDevelopmentUnits 获取楼盘户型列表
-// @Summary 获取楼盘户型列表
-// @Description 根据新楼盘ID获取所有户型
-// @Tags 新楼盘
+// GetDevelopmentLayouts 获取新盘户型列表
+// @Summary 获取新盘户型列表
+// @Tags 新盘
 // @Accept json
 // @Produce json
-// @Param id path int true "新楼盘ID"
-// @Success 200 {object} models.Response{data=[]models.NewDevelopmentLayoutResponse}
-// @Failure 404 {object} models.Response
-// @Router /api/v1/new-properties/{id}/units [get]
-func (h *NewPropertyHandler) GetDevelopmentUnits(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+// @Param id path int true "新盘ID"
+// @Success 200 {object} tools.Response{data=[]models.NewPropertyLayout}
+// @Failure 404 {object} tools.Response
+// @Router /api/v1/new-properties/{id}/layouts [get]
+func (ctrl *NewDevelopmentController) GetDevelopmentLayouts(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		tools.BadRequest(c, "无效的新楼盘ID")
+		tools.BadRequest(c, "invalid new property id")
 		return
 	}
 
-	units, err := h.service.GetDevelopmentUnits(c.Request.Context(), uint(id))
+	layouts, err := ctrl.service.GetNewPropertyLayouts(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == pkgErrors.ErrNotFound {
-			tools.NotFound(c, "新楼盘不存在")
-			return
-		}
-		h.logger.Error("Failed to get development units", zap.Uint64("id", id), zap.Error(err))
-		tools.InternalError(c, "获取楼盘户型失败")
+		tools.NotFound(c, err.Error())
 		return
 	}
 
-	tools.Success(c, units)
-}
-
-// GetFeaturedNewDevelopments 获取精选新楼盘
-// @Summary 获取精选新楼盘
-// @Description 获取精选新楼盘列表
-// @Tags 新楼盘
-// @Accept json
-// @Produce json
-// @Param limit query int false "数量限制" default(10)
-// @Success 200 {object} models.Response{data=[]models.NewDevelopmentListItemResponse}
-// @Router /api/v1/new-properties/featured [get]
-func (h *NewPropertyHandler) GetFeaturedNewDevelopments(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 10
-	}
-	if limit > 50 {
-		limit = 50
-	}
-
-	items, err := h.service.GetFeaturedNewDevelopments(c.Request.Context(), limit)
-	if err != nil {
-		h.logger.Error("Failed to get featured new developments", zap.Error(err))
-		tools.InternalError(c, "获取精选新楼盘失败")
-		return
-	}
-
-	tools.Success(c, items)
+	tools.Success(c, layouts)
 }

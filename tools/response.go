@@ -6,25 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Response 统一响应结构
+// Response 标准响应结构
 type Response struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
-}
-
-// PaginatedResponse 分页响应结构
-type PaginatedResponse struct {
-	Response
-	Pagination *Pagination `json:"pagination,omitempty"`
-}
-
-// Pagination 分页信息
-type Pagination struct {
-	Page      int   `json:"page"`
-	PageSize  int   `json:"page_size"`
-	Total     int64 `json:"total"`
-	TotalPage int   `json:"total_page"`
 }
 
 // 响应码定义
@@ -55,19 +41,7 @@ func Created(c *gin.Context, data interface{}) {
 	})
 }
 
-// SuccessWithPagination 带分页的成功响应
-func SuccessWithPagination(c *gin.Context, data interface{}, pagination *Pagination) {
-	c.JSON(http.StatusOK, PaginatedResponse{
-		Response: Response{
-			Code:    CodeSuccess,
-			Message: "success",
-			Data:    data,
-		},
-		Pagination: pagination,
-	})
-}
-
-// BadRequest 错误请求响应
+// BadRequest 错误请求
 func BadRequest(c *gin.Context, message string) {
 	c.JSON(http.StatusBadRequest, Response{
 		Code:    CodeBadRequest,
@@ -75,7 +49,7 @@ func BadRequest(c *gin.Context, message string) {
 	})
 }
 
-// Unauthorized 未授权响应
+// Unauthorized 未授权
 func Unauthorized(c *gin.Context, message string) {
 	c.JSON(http.StatusUnauthorized, Response{
 		Code:    CodeUnauthorized,
@@ -83,7 +57,7 @@ func Unauthorized(c *gin.Context, message string) {
 	})
 }
 
-// Forbidden 禁止访问响应
+// Forbidden 禁止访问
 func Forbidden(c *gin.Context, message string) {
 	c.JSON(http.StatusForbidden, Response{
 		Code:    CodeForbidden,
@@ -91,7 +65,7 @@ func Forbidden(c *gin.Context, message string) {
 	})
 }
 
-// NotFound 未找到响应
+// NotFound 资源未找到
 func NotFound(c *gin.Context, message string) {
 	c.JSON(http.StatusNotFound, Response{
 		Code:    CodeNotFound,
@@ -99,24 +73,10 @@ func NotFound(c *gin.Context, message string) {
 	})
 }
 
-// InternalError 内部错误响应
+// InternalError 服务器内部错误
 func InternalError(c *gin.Context, message string) {
 	c.JSON(http.StatusInternalServerError, Response{
 		Code:    CodeInternalError,
 		Message: message,
 	})
-}
-
-// NewPagination 创建分页信息
-func NewPagination(page, pageSize int, total int64) *Pagination {
-	totalPage := int(total) / pageSize
-	if int(total)%pageSize > 0 {
-		totalPage++
-	}
-	return &Pagination{
-		Page:      page,
-		PageSize:  pageSize,
-		Total:     total,
-		TotalPage: totalPage,
-	}
 }
