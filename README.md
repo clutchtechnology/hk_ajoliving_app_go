@@ -41,30 +41,30 @@
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
 | 17 | GET | `/api/v1/properties/buy` | ListBuyProperties | 买房房源列表 |
-| 18 | GET | `/api/v1/properties/buy/new` | ListNewProperties | 新房列表 |
-| 19 | GET | `/api/v1/properties/buy/secondhand` | ListSecondhandProperties | 二手房列表 |
+| 18 | GET | `/api/v1/properties/buy/new` | ListNewProperties | 新房列表 |（todo）
+| 19 | GET | `/api/v1/properties/buy/secondhand` | ListSecondhandProperties | 二手房列表 |（todo）
 
 ### 租房 (Rent)
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
 | 20 | GET | `/api/v1/properties/rent` | ListRentProperties | 租房房源列表 |
-| 21 | GET | `/api/v1/properties/rent/short-term` | ListShortTermRent | 短租房源 |
-| 22 | GET | `/api/v1/properties/rent/long-term` | ListLongTermRent | 长租房源 |
+| 21 | GET | `/api/v1/properties/rent/short-term` | ListShortTermRent | 短租房源 |（todo）
+| 22 | GET | `/api/v1/properties/rent/long-term` | ListLongTermRent | 长租房源 |（todo）
 
 ### 新盘 (New Properties)
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
 | 23 | GET | `/api/v1/new-properties` | ListNewDevelopments | 新楼盘列表 |
-| 24 | GET | `/api/v1/new-properties/:id` | GetNewDevelopment | 新楼盘详情 |
-| 25 | GET | `/api/v1/new-properties/:id/units` | GetDevelopmentUnits | 楼盘单位列表 |
+| 24 | GET | `/api/v1/new-properties/:id` | GetNewDevelopment | 新楼盘详情 |（todo）
+| 25 | GET | `/api/v1/new-properties/:id/units` | GetDevelopmentUnits | 楼盘单位列表 |（todo）
 
 ### 服务式住宅 (Serviced Apartments)
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 26 | GET | `/api/v1/serviced-apartments` | ListServicedApartments | 服务式公寓列表 |
+| 26 | GET | `/api/v1/serviced-apartments` | ListServicedApartments | 服务式公寓列表 |（✓）
 | 27 | GET | `/api/v1/serviced-apartments/:id` | GetServicedApartment | 服务式公寓详情 |
 | 28 | GET | `/api/v1/serviced-apartments/:id/units` | GetServicedApartmentUnits | 服务式公寓房型列表 |
 | 29 | GET | `/api/v1/serviced-apartments/:id/images` | GetServicedApartmentImages | 服务式公寓图片 |
@@ -76,7 +76,7 @@
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 33 | GET | `/api/v1/estates` | ListEstates | 屋苑列表 |
+| 33 | GET | `/api/v1/estates` | ListEstates | 屋苑列表 |（✓）
 | 34 | GET | `/api/v1/estates/:id` | GetEstate | 屋苑详情 |
 | 35 | GET | `/api/v1/estates/:id/properties` | GetEstateProperties | 屋苑内房源列表 |
 | 36 | GET | `/api/v1/estates/:id/images` | GetEstateImages | 屋苑图片 |
@@ -93,7 +93,7 @@
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 44 | GET | `/api/v1/valuation` | ListValuations | 获取屋苑估价列表 |
+| 44 | GET | `/api/v1/valuation` | ListValuations | 获取屋苑估价列表 |（✓）
 | 45 | GET | `/api/v1/valuation/:estateId` | GetEstateValuation | 获取指定屋苑估价参考 |
 | 46 | GET | `/api/v1/valuation/search` | SearchValuations | 搜索屋苑估价 |
 | 47 | GET | `/api/v1/valuation/districts/:districtId` | GetDistrictValuations | 获取地区屋苑估价列表 |
@@ -104,8 +104,8 @@
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 48 | GET | `/api/v1/furniture` | ListFurniture | 家具列表 |
-| 49 | GET | `/api/v1/furniture/categories` | GetFurnitureCategories | 家具分类 |
+| 48 | GET | `/api/v1/furniture` | ListFurniture | 家具列表 |（✓）
+| 49 | GET | `/api/v1/furniture/categories` | GetFurnitureCategories | 家具分类 |（✓）
 | 50 | GET | `/api/v1/furniture/:id` | GetFurniture | 家具详情 |
 | 51 | POST | `/api/v1/furniture` | CreateFurniture | 发布家具（需认证） |
 | 52 | PUT | `/api/v1/furniture/:id` | UpdateFurniture | 更新家具（需认证） |
@@ -155,7 +155,7 @@
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 76 | GET | `/api/v1/school-nets` | ListSchoolNets | 校网列表 |
+| 76 | GET | `/api/v1/school-nets` | ListSchoolNets | 校网列表 |（✓）
 | 77 | GET | `/api/v1/school-nets/:id` | GetSchoolNet | 校网详情 |
 | 78 | GET | `/api/v1/school-nets/:id/schools` | GetSchoolsInNet | 校网内学校 |
 | 79 | GET | `/api/v1/school-nets/:id/properties` | GetPropertiesInNet | 校网内房源 |
@@ -180,7 +180,7 @@
 
 | # | 方法 | 路径 | Handler | 说明 |
 |---|------|------|---------|------|
-| 89 | GET | `/api/v1/agencies` | ListAgencies | 代理公司列表 |
+| 89 | GET | `/api/v1/agencies` | ListAgencies | 代理公司列表 |（✓）
 | 90 | GET | `/api/v1/agencies/:id` | GetAgency | 代理公司详情 |
 | 91 | GET | `/api/v1/agencies/:id/properties` | GetAgencyProperties | 代理公司房源列表 |
 | 92 | POST | `/api/v1/agencies/:id/contact` | ContactAgency | 联系代理公司 |

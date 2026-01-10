@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build:
@@ -8,15 +6,11 @@ services:
     container_name: ajoliving-api
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
-      - SERVER_MODE=debug
       - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=ajoliving
-      - DB_PASSWORD=secret
-      - DB_NAME=ajoliving_db
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,9 +24,9 @@ services:
     image: postgres:15-alpine
     container_name: ajoliving-postgres
     environment:
-      POSTGRES_USER: ajoliving
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: ajoliving_db
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
